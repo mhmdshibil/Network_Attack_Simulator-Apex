@@ -1,4 +1,3 @@
-import time
 import pandas as pd
 from datetime import datetime, timezone
 from pathlib import Path
@@ -8,10 +7,8 @@ from backend.app.ml.feature_engineering import FEATURE_COLUMNS
 from backend.app.services.log_service import load_all_logs, aggregate_by_time_window
 
 BASE_DIR = Path(__file__).resolve().parents[3]
-
 DETECTIONS_FILE = BASE_DIR / "data/processed/detections.csv"
 BLOCKED_IPS = set()
-
 
 class DetectionEngine:
     def __init__(self):
@@ -26,22 +23,30 @@ class DetectionEngine:
 
         agg["predicted_label"] = preds
 
+        detections = []
+
         attacks = agg[agg["predicted_label"] != "normal"]
 
         for _, row in attacks.iterrows():
             ip = row["source_ip"]
+            timestamp = datetime.now(timezone.utc).isoformat()
+
             BLOCKED_IPS.add(ip)
 
             detection = {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "source_ip": ip,
-                "predicted_label": row["predicted_label"]
+                "ip": ip,
+                "timestamp": timestamp,
+                "label": row["predicted_label"],
+                "action": "blocked"
             }
 
+            detections.append(detection)
             self._log_detection(detection)
 
             print(f"[ALERT] Attack detected from {ip}")
             print(f"[SIMULATED FIREWALL] iptables -A INPUT -s {ip} -j DROP")
+
+        return detections
 
     def _log_detection(self, detection):
         df = pd.DataFrame([detection])
@@ -50,14 +55,3 @@ class DetectionEngine:
             df.to_csv(DETECTIONS_FILE, mode="a", header=False, index=False)
         else:
             df.to_csv(DETECTIONS_FILE, index=False)
-
-
-def run_detection_loop(interval_seconds=5):
-    engine = DetectionEngine()
-    print("[INFO] Detection engine started")
-
-    while True:
-        engine.run_once()
-        time.sleep(interval_seconds)
-if __name__ == "__main__":
-    run_detection_loop(interval_seconds=5)        
