@@ -13,7 +13,7 @@ LABEL_WEIGHTS = {
 }
 
 
-def compute_risk(correlations: List[Dict]) -> List[Dict]:
+def compute_risk(correlations: List[Dict], window: str) -> List[Dict]:
     """
     Compute risk scores for each IP address based on the correlated attack events.
     """
@@ -58,20 +58,20 @@ def compute_risk(correlations: List[Dict]) -> List[Dict]:
     # Process the risk map to create a list of risk results.
     for ip, data in risk_map.items():
         final_score = min(round(data["risk_score"], 2), 100.0)
-        confidence = 0.0
+        confidence = {"score": 0.0, "factors": {}}
         if data["events"]:
             try:
-                # Compute the confidence score for the events.
-                confidence = compute_confidence(data["events"])
+                confidence = compute_confidence(data["events"], window)
             except Exception:
-                confidence = 0.0
+                confidence = {"score": 0.0, "factors": {}}
 
         # Append the risk result to the list of results.
         results.append({
             "ip": ip,
             "risk_score": final_score,
             "severity": _severity(final_score),
-            "confidence": confidence,
+            "confidence": confidence.get("score", 0.0),
+            "confidence_factors": confidence.get("factors", {}),
             "details": data["events"]
         })
 

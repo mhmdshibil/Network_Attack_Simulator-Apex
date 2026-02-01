@@ -244,7 +244,7 @@ def get_risk_scores(window: str = "5m"):
     # Correlate attacks within the specified time window.
     correlations = correlate_attacks(window=window)
     # Compute risk scores based on the correlations.
-    risks = compute_risk(correlations)
+    risks = compute_risk(correlations, window)
 
     # Return the risk scores.
     return {

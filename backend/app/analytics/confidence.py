@@ -1,51 +1,97 @@
-# confidence.py
-# This file contains the logic for computing a confidence score for detected attack correlations.
+# backend/app/analytics/confidence.py
+# Phase 6.3 – Dynamic Confidence Engine (Production Grade)
 
-def compute_confidence(correlations: list) -> float:
-    """
-    Compute confidence score (0.0 - 1.0) for detected attack correlations.
-    Confidence represents how sure the system is about the risk assessment.
-    """
+from typing import List, Dict
+from datetime import datetime, timezone
 
-    # If there are no correlations, the confidence is 0.
+
+def clamp(v: float, lo: float = 0.0, hi: float = 1.0) -> float:
+    return max(lo, min(v, hi))
+
+
+def window_decay(window: str) -> float:
+    if window.endswith("m"):
+        m = int(window[:-1])
+        return 1.0 if m <= 5 else 0.9 if m <= 15 else 0.8
+
+    if window.endswith("h"):
+        h = int(window[:-1])
+        return 0.85 if h <= 1 else 0.7 if h <= 6 else 0.5
+
+    return 0.6
+
+
+def recency_factor(timestamps: List[str]) -> float:
+    if not timestamps:
+        return 0.4
+
+    now = datetime.now(timezone.utc)
+    ages = []
+
+    for ts in timestamps:
+        try:
+            t = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            ages.append((now - t).total_seconds())
+        except Exception:
+            continue
+
+    if not ages:
+        return 0.4
+
+    avg = sum(ages) / len(ages)
+
+    if avg <= 300:
+        return 1.0
+    if avg <= 3600:
+        return 0.8
+    if avg <= 21600:
+        return 0.6
+    return 0.4
+
+
+def compute_confidence(correlations: List[Dict], window: str) -> Dict:
     if not correlations:
-        return 0.0
+        return {"score": 0.0, "factors": {}}
 
-    # Calculate a score based on the total number of events.
-    total_events = sum(c.get("count", 1) for c in correlations)
+    # ---- Volume ----
+    total = sum(int(c.get("count", 1)) for c in correlations)
+    volume = 1.0 if total >= 20 else 0.7 if total >= 10 else 0.4 if total >= 5 else 0.2
 
-    if total_events >= 20:
-        volume_score = 1.0
-    elif total_events >= 10:
-        volume_score = 0.7
-    elif total_events >= 5:
-        volume_score = 0.4
-    else:
-        volume_score = 0.2
+    # ---- Burst ----
+    burst = 1.0 if any(c.get("burst") for c in correlations) else 0.3
 
-    # Calculate a score based on whether there was a burst of activity.
-    burst_score = 1.0 if any(c.get("burst") for c in correlations) else 0.3
+    # ---- Diversity ----
+    labels = {c.get("label") for c in correlations if c.get("label")}
+    diversity = 1.0 if len(labels) >= 3 else 0.6 if len(labels) == 2 else 0.3
 
-    # Calculate a score based on the diversity of attack labels.
-    unique_labels = len({c.get("label") for c in correlations})
-    if unique_labels >= 3:
-        diversity_score = 1.0
-    elif unique_labels == 2:
-        diversity_score = 0.6
-    else:
-        diversity_score = 0.3
+    # ---- Temporal Spread ----
+    timestamps = [c.get("timestamp") for c in correlations if c.get("timestamp")]
+    temporal = 0.7 if len(set(timestamps)) > 1 else 0.3
 
-    # Calculate a score based on the temporal diversity of the events.
-    timestamps = {c.get("timestamp") for c in correlations}
-    temporal_score = 0.7 if len(timestamps) > 1 else 0.3
+    # ---- Recency ----
+    recency = recency_factor(timestamps)
 
-    # Combine the scores with different weights to get a final confidence score.
-    confidence = (
-        volume_score * 0.35 +
-        burst_score * 0.30 +
-        diversity_score * 0.20 +
-        temporal_score * 0.15
+    # ---- Base Score ----
+    base = (
+        volume * 0.30 +
+        burst * 0.25 +
+        diversity * 0.15 +
+        temporal * 0.15 +
+        recency * 0.15
     )
 
-    # Return the confidence score, rounded to 2 decimal places and capped at 1.0.
-    return round(min(confidence, 1.0), 2)
+    # ---- Window Scaling ----
+    win_factor = window_decay(window)
+    final = round(clamp(base * win_factor), 2)
+
+    return {
+        "score": final,
+        "factors": {
+            "volume": round(volume, 2),
+            "burst": round(burst, 2),
+            "diversity": round(diversity, 2),
+            "temporal": round(temporal, 2),
+            "recency": round(recency, 2),
+            "window_factor": round(win_factor, 2)
+        }
+    }
