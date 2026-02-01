@@ -1,10 +1,17 @@
-# risk.py
-# This file contains the logic for computing risk scores based on attack correlations.
+# backend/app/analytics/risk.py
+# This module is responsible for computing risk scores based on correlated attack data. It serves as a
+# core component of the analytics engine by translating raw attack events into a quantifiable measure of
+# risk. The primary function, `compute_risk`, takes a list of correlated attack events, applies a
+# weighted scoring model, and integrates a confidence score to produce a comprehensive risk profile for
+#
+# each IP address. This allows the system to prioritize threats and make informed decisions.
 
 from typing import List, Dict
 from backend.app.analytics.confidence import compute_confidence
 
-# A dictionary of weights for different attack labels.
+# A dictionary that assigns a numerical weight to different types of attacks (labels). These weights
+# are used in the risk calculation to ensure that more severe attack types contribute more to the
+# overall risk score. For example, 'ddos' is considered more critical than a 'port_scan'.
 LABEL_WEIGHTS = {
     "port_scan": 1.0,
     "bruteforce": 1.5,
@@ -15,7 +22,27 @@ LABEL_WEIGHTS = {
 
 def compute_risk(correlations: List[Dict], window: str) -> List[Dict]:
     """
-    Compute risk scores for each IP address based on the correlated attack events.
+    Computes risk scores for each IP address based on a list of correlated attack events.
+
+    This function aggregates attack data for each IP, calculates a preliminary risk score by applying
+    weights based on the attack type (`label`) and whether the event was part of a burst. It then
+    computes a confidence score for the aggregated events and combines everything into a final risk
+    profile for each IP.
+
+    The risk score for a single event is calculated as:
+        score = count * weight * (1.5 if burst else 1.0)
+
+    Args:
+        correlations (List[Dict]): A list of dictionaries, where each dictionary represents a
+                                   correlated attack event and contains details like 'ip', 'label',
+                                   'count', and 'burst'.
+        window (str): The time window used for the analysis, which is passed to the confidence
+                      computation.
+
+    Returns:
+        List[Dict]: A list of dictionaries, each representing the risk profile for an IP address.
+                    The list is sorted in descending order by risk score. Each profile includes the IP,
+                    the final risk score, a severity level, confidence score, and detailed event data.
     """
     risk_map: Dict[str, Dict] = {}
 
@@ -80,38 +107,24 @@ def compute_risk(correlations: List[Dict], window: str) -> List[Dict]:
     return results
 
 
-
-
-
 def _severity(score: float) -> str:
-
-
     """
+    Determines the severity level based on a given risk score.
 
+    This helper function translates a numerical risk score into a human-readable severity category.
+    The categories are 'critical', 'high', 'medium', and 'low', each corresponding to a different
+    range of scores.
 
-    Determine the severity level based on the risk score.
+    Args:
+        score (float): The risk score, typically between 0 and 100.
 
-
+    Returns:
+        str: The corresponding severity level as a string.
     """
-
-
     if score >= 80:
-
-
         return "critical"
-
-
     if score >= 50:
-
-
         return "high"
-
-
     if score >= 20:
-
-
         return "medium"
-
-
     return "low"
-

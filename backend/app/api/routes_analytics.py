@@ -1,6 +1,10 @@
-# routes_analytics.py
-# This file defines the API routes for the analytics features of the application.
-# It includes endpoints for getting top attackers, attack distribution, attack trends, and risk scores.
+# backend/app/api/routes_analytics.py
+# This module defines the RESTful API endpoints for the analytics features of the Network Attack Simulator.
+# It leverages the FastAPI framework to create a set of routes that expose critical security metrics and
+# insights. These endpoints provide access to real-time and historical data, including top attackers,
+# attack distribution, temporal attack trends, and calculated risk scores. By encapsulating the analytics
+# logic within this API, the system offers a standardized and accessible way for front-end applications
+# or other services to consume and visualize security-related data.
 
 from fastapi import APIRouter
 import pandas as pd
@@ -8,7 +12,8 @@ from backend.app.core.paths import DETECTIONS_FILE
 from backend.app.analytics.correlation import correlate_attacks
 from backend.app.analytics.risk import compute_risk
 
-# A mapping of friendly interval names to pandas frequency strings.
+# A mapping of user-friendly interval names to pandas frequency strings. This allows the API to accept
+# simple inputs (e.g., "5m") and translate them into a format that pandas can use for time-series resampling.
 INTERVAL_MAP = {
     "1m": "1min",
     "5m": "5min",
@@ -17,14 +22,27 @@ INTERVAL_MAP = {
     "1h": "1H"
 }
 
-# Create a new router for the analytics endpoints.
+# Create a new FastAPI router for the analytics endpoints. This helps organize the routes and allows
+# for modular configuration, such as setting a common prefix ("/api/analytics") and tags for all routes defined here.
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 
 @router.get("/top_attackers")
 def get_top_attackers(limit: int = 5):
     """
-    Get the top attackers based on the number of detected attacks.
+    Retrieves a list of the top attackers based on the number of detected malicious activities.
+
+    This endpoint reads from the `detections.csv` file, groups the data by IP address, and aggregates
+    the information to identify which IPs are responsible for the most attacks. For each top attacker,
+    it returns the total attack count, as well as the first and last times they were seen.
+
+    Args:
+        limit (int, optional): The maximum number of top attackers to return. Defaults to 5.
+
+    Returns:
+        dict: A dictionary containing the query limit and a list of attacker objects.
+              Each attacker object includes their IP, attack count, and the timestamps of their
+              first and last seen activities. If no detections are found, it returns an empty list.
     """
     # If the detections file doesn't exist, return an empty list of attackers.
     if not DETECTIONS_FILE.exists():
@@ -83,7 +101,16 @@ def get_top_attackers(limit: int = 5):
 @router.get("/attack_distribution")
 def attack_distribution():
     """
-    Get the distribution of attack labels.
+    Calculates and returns the distribution of different attack types (labels).
+
+    This endpoint analyzes the `detections.csv` file to count the occurrences of each unique attack
+    label (e.g., "Port Scan", "SQL Injection"). It provides both the raw count for each label and its
+    percentage relative to the total number of detected attacks.
+
+    Returns:
+        dict: A dictionary containing the total number of attacks and a nested dictionary with the
+              distribution details. Each key in the distribution is an attack label, and its value
+              is an object with the count and percentage.
     """
     # If the detections file doesn't exist, return an empty distribution.
     if not DETECTIONS_FILE.exists():
@@ -127,7 +154,23 @@ def attack_distribution():
 @router.get("/attack_trends")
 def attack_trends(interval: str = "5m", window: str = "1h"):
     """
-    Get the trends of attacks over time.
+    Provides time-series data on attack trends, showing how many attacks of each type occurred
+    over a specified time window, aggregated into intervals.
+
+    This endpoint reads detection data, filters it to a recent time window, and then groups the
+    attacks by label. It resamples the data into time intervals (e.g., every 5 minutes) to show
+    how the frequency of each attack type changes over time.
+
+    Args:
+        interval (str, optional): The time interval for aggregating attack counts (e.g., "1m", "5m", "1h").
+                                  Defaults to "5m".
+        window (str, optional): The total time window to consider for the trend analysis (e.g., "1h", "6h").
+                                Defaults to "1h".
+
+    Returns:
+        dict: A dictionary containing metadata about the query (interval, window) and a `trends` object.
+              The `trends` object is a nested dictionary where keys are attack labels, and values are
+              dictionaries mapping ISO-formatted timestamps to attack counts.
     """
     # If the detections file doesn't exist, return empty trends.
     if not DETECTIONS_FILE.exists():
@@ -239,7 +282,21 @@ def attack_trends(interval: str = "5m", window: str = "1h"):
 @router.get("/risk")
 def get_risk_scores(window: str = "5m"):
     """
-    Get risk scores based on correlated attacks.
+    Computes and returns risk scores for IP addresses based on correlated attack patterns.
+
+    This endpoint first calls the `correlate_attacks` function to identify related malicious
+    activities within a given time window. It then passes these correlations to the `compute_risk`
+    function to calculate a risk score for each IP address. The resulting scores indicate the
+    perceived threat level of each IP.
+
+    Args:
+        window (str, optional): The time window to use for correlating attacks, specified in a
+                                pandas-compatible format (e.g., "5m", "1h"). Defaults to "5m".
+
+    Returns:
+        dict: A dictionary containing the time window, the total count of IPs with risk scores,
+              and a list of risk objects. Each risk object details the IP, its calculated risk score,
+              and other relevant metadata.
     """
     # Correlate attacks within the specified time window.
     correlations = correlate_attacks(window=window)

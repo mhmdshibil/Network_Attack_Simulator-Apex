@@ -1,20 +1,36 @@
-# routes_metrics.py
-# This file defines the API routes for performance and system metrics.
-# It includes endpoints for getting general metrics and a timeline of detections.
+# backend/app/api/routes_metrics.py
+# This module defines the API routes for retrieving performance and system-wide security metrics.
+# It provides endpoints that offer a high-level overview of the system's status, including the
+# total number of detections, a count of uniquely blocked IPs, and a summary of attack types.
+# It also includes a timeline endpoint for visualizing detection frequency over time. These metrics are
+# essential for monitoring the system's health and understanding the overall threat landscape.
 
 from fastapi import APIRouter
 import pandas as pd
 
 from backend.app.core.paths import DETECTIONS_FILE
 
-# Create a new router for the metrics endpoints.
+# Create a new router for the metrics endpoints, which helps in organizing the API and applies
+# a consistent prefix and tag to all routes within this module.
 router = APIRouter(prefix="/api/metrics", tags=["metrics"])
 
 
 @router.get("/")
 def get_metrics():
     """
-    Get a summary of system metrics.
+    Retrieves a summary of key system and security metrics.
+
+    This endpoint provides a snapshot of the system's state by calculating several important metrics
+    from the `detections.csv` file. The metrics include:
+    - Total number of detections.
+    - Number of unique IP addresses that have been blocked.
+    - A breakdown of detection counts by attack label.
+    - The timestamp of the most recent detection.
+    - A time-series dictionary showing detection counts in 5-second buckets.
+
+    Returns:
+        dict: A dictionary containing the summary of system metrics. If the detection file
+              is not found or is invalid, it returns a default structure with zeroed values.
     """
     # If the detections file doesn't exist, return a default set of metrics.
     if not DETECTIONS_FILE.exists():
@@ -87,7 +103,20 @@ def get_metrics():
 @router.get("/timeline")
 def get_timeline(interval: str = "5s"):
     """
-    Get a timeline of detections over a specified interval.
+    Provides a time-series view of detection events over a specified interval.
+
+    This endpoint reads the detection data and resamples it based on the provided time interval,
+    counting the number of detections in each bucket. It is useful for creating visualizations
+    that show how the frequency of attacks changes over time.
+
+    Args:
+        interval (str, optional): A pandas-compatible time-series frequency string (e.g., "5s", "1min").
+                                  Defaults to "5s".
+
+    Returns:
+        dict: A dictionary containing the specified interval and a timeline object. The timeline
+              is a dictionary where keys are ISO-formatted timestamps and values are the counts
+              of detections in that interval. Returns an error if the interval is invalid.
     """
     # If the detections file doesn't exist, return an empty timeline.
     if not DETECTIONS_FILE.exists():

@@ -1,0 +1,6 @@
+pkt_count,byte_count,duration,src_port,dst_port,label
+120,5400,5,443,80,normal
+300,12000,3,22,8080,port_scan
+450,18000,2,3389,445,ddos
+200,8000,4,53,53,normal
+600,25000,1,80,443,ddos

@@ -1,87 +1,69 @@
-# engine.py
-# This file contains the main logic for the response engine.
-
+# backend/app/response/engine.py
+# This module serves as the unified integration engine that orchestrates the entire end-to-end
+# response process. It connects the various stages of the analytics and response pipeline, from
+# initial data correlation to final action execution. The `evaluate_and_respond` function is the
+# central entry point, coordinating the flow of data between the correlation, risk, confidence,
+# decision, and action modules. This streamlined workflow ensures that a potential threat can be
+# analyzed and acted upon in a seamless and automated fashion.
+from backend.app.analytics.explainability import build_explanation
 from backend.app.analytics.correlation import correlate_attacks
 from backend.app.analytics.risk import compute_risk
-from backend.app.analytics.policy import evaluate_policy
-from backend.app.response.actions import execute_actions
+from backend.app.analytics.confidence import compute_confidence
+from backend.app.response.decision import decide_action
+from backend.app.response.actions import execute_action
 
 
 def evaluate_and_respond(ip: str, window: str):
     """
-    The main function of the response engine. It evaluates the risk and
-    determines the appropriate response for a given IP address.
-    """
-    # Build the context for the evaluation.
-    context = _build_context(ip, window)
-    # Apply the policy to the context to get a decision.
-    decision = _apply_policy(context)
-    # Execute the actions based on the decision.
-    actions_result = _execute_actions(ip, decision)
+    Orchestrates the end-to-end evaluation and response process for a given IP address.
 
-    # Return a summary of the evaluation and response.
-    return {
-        "ip": ip,
-        "window": window,
-        "risk": context["risk"]["severity"],
-        "risk_score": context["risk"]["risk_score"],
-        "decision": decision.get("decision"),
-        "actions": actions_result,
-        "confidence": context["risk"].get("confidence", 1.0)
-    }
+    This function serves as the high-level coordinator for the response engine. It follows a
+    sequential pipeline to process threat data and determine an appropriate action:
+    1.  Correlate Attacks: Gathers and correlates all attack events related to the specified IP
+        within the given time window.
+    2.  Compute Risk: Calculates a risk score and severity level based on the correlated events.
+    3.  Compute Confidence: Determines the confidence level of the threat assessment.
+    4.  Decide Action: Translates the risk and confidence scores into a clear decision.
+    5.  Execute Action: Simulates the execution of the decided action.
 
+    Args:
+        ip (str): The IP address to be evaluated.
+        window (str): The time window to consider for the analysis (e.g., "5m", "1h").
 
-def _build_context(ip: str, window: str):
+    Returns:
+        dict: A comprehensive dictionary containing the results from each stage of the pipeline,
+              including the final risk score, confidence, decision, and action result.
     """
-    Build the context for the evaluation by correlating attacks and computing risk.
-    """
-    # Correlate attacks within the specified window and filter by IP.
+
     correlations = correlate_attacks(window=window)
     correlations = [c for c in correlations if c.get("ip") == ip]
 
-    # Compute the risk based on the correlations.
-    risks = compute_risk(correlations)
-    # Get the risk for the IP, or a default low-risk value if not found.
+    risks = compute_risk(correlations, window)
     risk = risks[0] if risks else {
         "risk_score": 0,
-        "severity": "low",
-        "details": []
+        "severity": "low"
     }
 
-    # Return the context dictionary.
-    return {
-        "ip": ip,
-        "window": window,
-        "correlations": correlations,
-        "risk": risk
-    }
+    confidence_result = compute_confidence(correlations, window)
 
-
-def _apply_policy(context: dict):
-    """
-    Apply the policy to the given context to get a decision.
-    """
-    # Call the evaluate_policy function with the context information.
-    return evaluate_policy(
-        ip=context["ip"],
-        risk=context["risk"],
-        correlations=context["correlations"]
-    )
-
-
-def _execute_actions(ip: str, decision: dict):
-    """
-    Execute the actions specified in the decision.
-    """
-    # Get the list of actions from the decision dictionary.
-    actions = decision.get("actions", [])
-    # If there are no actions, return an empty list.
-    if not actions:
-        return []
-
-    # Execute the actions and return the results.
-    return execute_actions(
+    decision_payload = decide_action(
         ip=ip,
-        actions=actions,
-        reason=decision.get("reason", "")
+        risk_score=risk["risk_score"],
+        confidence=confidence_result.get("score", 0.0)
     )
+
+    action_result = execute_action(decision_payload)
+
+    explanation = build_explanation(
+        ip=ip,
+        decision=decision_payload.get("decision"),
+        risk_score=risk["risk_score"],
+        confidence=confidence_result.get("score", 0.0),
+        signals={
+            "attack_count": len(correlations),
+            "severity": risk.get("severity", "low"),
+            "window": window
+        }
+    )
+
+    return explanation

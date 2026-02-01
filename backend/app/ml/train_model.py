@@ -1,5 +1,9 @@
-# train_model.py
-# This file contains the script for training the machine learning model.
+# backend/app/ml/train_model.py
+# This module contains the script responsible for training the machine learning model. It orchestrates
+# the end-to-end training process, from loading the data to saving the final trained model. The script
+# uses a RandomForestClassifier, a powerful ensemble model, and evaluates its performance using standard
+# classification metrics. This centralized training script ensures that the model can be consistently
+# and reproducibly trained and updated.
 
 import pandas as pd
 import joblib
@@ -11,16 +15,29 @@ from sklearn.model_selection import train_test_split
 
 from backend.app.ml.feature_engineering import FEATURE_COLUMNS
 
-# Define the base directory and paths for the data and model.
+# The base directory of the project, used to construct absolute paths to data and model files.
 BASE_DIR = Path(__file__).resolve().parents[3]
 
+# The path to the processed, aggregated traffic data used for training the model.
 DATA_PATH = BASE_DIR / "data/processed/aggregated_traffic.csv"
+# The path where the trained model will be saved.
 MODEL_PATH = BASE_DIR / "models/random_forest.pkl"
 
 
 def train_random_forest():
     """
-    Train a RandomForestClassifier model and save it to a file.
+    Trains a RandomForestClassifier model on the aggregated traffic data and saves it.
+
+    This function performs the following steps:
+    1. Loads the dataset from the specified `DATA_PATH`.
+    2. Separates the data into features (X) and the target label (y).
+    3. Splits the data into training and testing sets, using stratification to maintain the
+       same proportion of labels in both sets.
+    4. Initializes a `RandomForestClassifier` with 100 estimators.
+    5. Trains the model using the training data.
+    6. Evaluates the model's performance on the test data by printing a classification report
+       and a confusion matrix.
+    7. Serializes and saves the trained model to the `MODEL_PATH` using `joblib`.
     """
     # Load the aggregated traffic data.
     df = pd.read_csv(DATA_PATH)
@@ -59,5 +76,5 @@ def train_random_forest():
 
 
 if __name__ == "__main__":
-    # Train the model when the script is executed directly.
+    # This block allows the script to be run directly from the command line to train the model.
     train_random_forest()

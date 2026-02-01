@@ -1,15 +1,49 @@
 # backend/app/analytics/confidence.py
-# Phase 6.3 – Dynamic Confidence Engine (Production Grade)
+# This module implements the Dynamic Confidence Engine, a system designed to assess the reliability of
+# correlated attack data. Its primary function, `compute_confidence`, evaluates a set of correlated
+# attack events and produces a confidence score from 0.0 to 1.0. This score indicates how certain the
+# system is that the observed activity is a genuine threat. The engine considers multiple factors,
+# including the volume of events, the diversity of attack types, the timing of the events (recency and
+# temporal spread), and whether the activity occurred in a burst. By synthesizing these factors, the
+# engine provides a nuanced and context-aware confidence level, which is critical for making
+# accurate security decisions.
 
 from typing import List, Dict
 from datetime import datetime, timezone
 
 
 def clamp(v: float, lo: float = 0.0, hi: float = 1.0) -> float:
+    """
+    Clamps a floating-point value to a specified range [lo, hi].
+
+    This is a utility function to ensure that a value remains within a predefined boundary.
+    It is used to keep confidence scores and their factors within the standard 0.0 to 1.0 range.
+
+    Args:
+        v (float): The value to clamp.
+        lo (float, optional): The lower bound of the range. Defaults to 0.0.
+        hi (float, optional): The upper bound of the range. Defaults to 1.0.
+
+    Returns:
+        float: The clamped value.
+    """
     return max(lo, min(v, hi))
 
 
 def window_decay(window: str) -> float:
+    """
+    Calculates a decay factor based on the size of the analysis window.
+
+    The principle is that longer time windows can introduce more noise, so the confidence score
+    is slightly reduced to account for this potential uncertainty. Shorter, more focused windows
+    receive a higher confidence multiplier.
+
+    Args:
+        window (str): A string representing the time window (e.g., "5m", "1h").
+
+    Returns:
+        float: A decay factor between 0.5 and 1.0.
+    """
     if window.endswith("m"):
         m = int(window[:-1])
         return 1.0 if m <= 5 else 0.9 if m <= 15 else 0.8
@@ -22,6 +56,19 @@ def window_decay(window: str) -> float:
 
 
 def recency_factor(timestamps: List[str]) -> float:
+    """
+    Calculates a factor based on the average age of the timestamps.
+
+    This function rewards more recent events with a higher score, as they are more likely to
+    be relevant to the current state of the system. The age of an event is the time difference
+    between now and its timestamp.
+
+    Args:
+        timestamps (List[str]): A list of ISO-formatted timestamp strings.
+
+    Returns:
+        float: A factor between 0.4 and 1.0, where a higher value indicates greater recency.
+    """
     if not timestamps:
         return 0.4
 
@@ -50,6 +97,26 @@ def recency_factor(timestamps: List[str]) -> float:
 
 
 def compute_confidence(correlations: List[Dict], window: str) -> Dict:
+    """
+    Computes a confidence score based on a list of correlated attack events.
+
+    The final score is a weighted average of several factors, each representing a different
+    aspect of the attack pattern. The factors are:
+    - Volume (30%): The total number of events. More events increase confidence.
+    - Burst (25%): Whether any event occurred in a burst. Bursts are a strong indicator of an attack.
+    - Diversity (15%): The number of unique attack types (labels). A wider variety of attacks suggests a more sophisticated threat.
+    - Temporal Spread (15%): Whether events occurred at different times.
+    - Recency (15%): How recently the events occurred.
+
+    The base score is then scaled by a `window_decay` factor to account for the analysis window size.
+
+    Args:
+        correlations (List[Dict]): A list of correlated attack events.
+        window (str): The time window used for the analysis.
+
+    Returns:
+        Dict: A dictionary containing the final confidence score and a breakdown of the contributing factors.
+    """
     if not correlations:
         return {"score": 0.0, "factors": {}}
 
