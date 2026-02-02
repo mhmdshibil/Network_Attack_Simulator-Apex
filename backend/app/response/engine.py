@@ -56,14 +56,17 @@ def evaluate_and_respond(ip: str, window: str):
 
     explanation = build_explanation(
         ip=ip,
-        decision=decision_payload.get("decision"),
+        decision=decision_payload["decision"],
         risk_score=risk["risk_score"],
         confidence=confidence_result.get("score", 0.0),
         signals={
             "attack_count": len(correlations),
-            "severity": risk.get("severity", "low"),
+            "severity": decision_payload.get("severity", risk.get("severity", "low")),
             "window": window
         }
     )
+
+    explanation["decision"] = decision_payload["decision"]
+    explanation["action"] = action_result.get("action", decision_payload["decision"])
 
     return explanation
