@@ -27,3 +27,10 @@ DETECTIONS_FILE = PROCESSED_DIR / "detections.csv"
 # `AGGREGATED_FILE` is the full path to the CSV file used for storing aggregated network
 # traffic data. This can be used for performance monitoring or further analysis.
 AGGREGATED_FILE = PROCESSED_DIR / "aggregated_traffic.csv"
+
+# `POLICIES_DIR` points to the directory where policy-related files are stored.
+POLICIES_DIR = DATA_DIR / "policies"
+
+# `HARD_BLOCKED_IPS_FILE` is the full path to the JSON file that lists IP addresses
+# that are permanently blocked by policy.
+HARD_BLOCKED_IPS_FILE = POLICIES_DIR / "hard_blocked_ips.json"

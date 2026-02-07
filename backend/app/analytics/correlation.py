@@ -71,7 +71,7 @@ def correlate_attacks(window: str = "5m"):
 
     # Filter the data to the specified time window.
     window_td = pd.to_timedelta(INTERVAL_MAP[window])
-    cutoff = pd.Timestamp.utcnow() - window_td
+    cutoff = pd.Timestamp.now(tz="UTC") - window_td
     df = df[df["timestamp"] >= cutoff]
 
     # If the DataFrame is empty after filtering, return an empty list.
@@ -93,15 +93,29 @@ def correlate_attacks(window: str = "5m"):
 
     # Create a list of correlation dictionaries.
     for _, row in grouped.iterrows():
+        ip = row["ip"]
+        label = row["label"]
         count = int(row["count"])
 
+        group = df[(df["ip"] == ip) & (df["label"] == label)]
+
+        threshold = dynamic_threshold
+        burst = count >= threshold
+
+        latest_ts = None
+        if "timestamp" in group.columns:
+            ts = pd.to_datetime(group["timestamp"], errors="coerce").dropna()
+            if not ts.empty:
+                latest_ts = ts.max()
+
         correlations.append({
-            "ip": row["ip"],
-            "label": row["label"],
+            "ip": ip,
+            "label": label,
             "count": count,
             "window": window,
-            "burst": count >= dynamic_threshold,
-            "threshold": dynamic_threshold
+            "burst": burst,
+            "threshold": threshold,
+            "timestamp": latest_ts.isoformat() if latest_ts else None
         })
 
     # Return the list of correlations.
