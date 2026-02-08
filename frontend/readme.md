@@ -15,7 +15,7 @@ Tech Stack
 
 Requirements
 ------------
-- Node.js 18+ (recommended)
+- Node.js v18.0+ (recommended)
 - npm (or compatible package manager)
 
 Getting Started
