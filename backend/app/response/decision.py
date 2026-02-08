@@ -1,10 +1,8 @@
-# backend/app/response/decision.py
-
 import json
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
-HARD_BLOCK_FILE = Path("data/policy/hard_blocked_ips.json")
+HARD_BLOCK_FILE = Path("backend/app/policy/hard_blocked_ips.json")
 
 
 def _load_hard_blocked_ips() -> dict:
@@ -23,47 +21,72 @@ def decide_action(
     ip: str,
     attack_count: int,
     risk_score: float,
-    confidence: float
+    confidence: float,
+    severity: str  # kept for logging only, NOT trusted
 ) -> dict:
+    """
+    Phase 8 — Policy Decision Engine (FINAL, CORRECT)
+
+    Decisions are based on:
+    - attack_count
+    - risk_score
+    - confidence
+    Severity is derived, not trusted.
+    """
+
     hard_blocked = _load_hard_blocked_ips()
 
-    # 1️⃣ Already blocked → always block
+    # 1️⃣ Already hard-blocked → always block
     if ip in hard_blocked:
         return {
-            "ip": ip,
             "decision": "BLOCK",
             "severity": "high",
-            "forced": True,
             "risk_score": max(risk_score, 100),
             "confidence": max(confidence, 0.9),
             "reason": "IP previously hard-blocked"
         }
 
-    # 2️⃣ No attacks → monitor
-    if attack_count == 0:
+    # 2️⃣ High attack volume with high confidence → BLOCK
+    if attack_count >= 5 and confidence >= 0.7:
+        hard_blocked[ip] = {
+            "blocked_at": datetime.now(timezone.utc).isoformat(),
+            "reason": "high_attack_volume"
+        }
+        _save_hard_blocked_ips(hard_blocked)
+
         return {
-            "ip": ip,
-            "decision": "MONITOR",
-            "severity": "low",
-            "forced": False,
-            "risk_score": 0,
-            "confidence": round(confidence, 2),
-            "reason": "No attacks observed"
+            "decision": "BLOCK",
+            "severity": "high",
+            "risk_score": max(risk_score, 80),
+            "confidence": confidence,
+            "reason": "High attack volume with high confidence"
         }
 
-    # 3️⃣ Any attack → hard block
-    hard_blocked[ip] = {
-        "blocked_at": datetime.utcnow().isoformat(),
-        "reason": "attack_detected"
-    }
-    _save_hard_blocked_ips(hard_blocked)
+    # 3️⃣ High risk score with confidence → RATE LIMIT
+    if risk_score >= 60 and confidence >= 0.7:
+        return {
+            "decision": "RATE_LIMIT",
+            "severity": "medium",
+            "risk_score": risk_score,
+            "confidence": confidence,
+            "reason": "Sustained high-risk behavior"
+        }
 
+    # 4️⃣ Suspicious but not critical → ALERT / MONITOR
+    if risk_score >= 30:
+        return {
+            "decision": "ALERT",
+            "severity": "medium",
+            "risk_score": risk_score,
+            "confidence": confidence,
+            "reason": "Suspicious activity detected"
+        }
+
+    # 5️⃣ Low risk → ALLOW
     return {
-        "ip": ip,
-        "decision": "BLOCK",
-        "severity": "high",
-        "forced": True,
-        "risk_score": max(risk_score, 10),
-        "confidence": round(max(confidence, 0.6), 2),
-        "reason": "Attack detected — hard block enforced"
+        "decision": "ALLOW",
+        "severity": "low",
+        "risk_score": risk_score,
+        "confidence": confidence,
+        "reason": "Low risk activity"
     }

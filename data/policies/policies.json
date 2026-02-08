@@ -1,0 +1,16 @@
+{
+  "allowlist": [
+    "10.0.0.1",
+    "192.168.1.10"
+  ],
+  "blocklist": [
+    "10.0.0.200"
+  ],
+  "rules": {
+    "always_block_attacks": [
+      "malware",
+      "ddos"
+    ],
+    "cooldown_minutes": 10
+  }
+}
