@@ -1,50 +1,59 @@
+# backend/app/response/actions.py
+
 from datetime import datetime, timezone
 from typing import Dict
 
 
-def execute_action(*, ip: str, action: str) -> Dict:
+def execute_action(
+    *,
+    ip: str,
+    action: str,
+    severity: str,
+    risk_score: float
+) -> Dict:
     """
-    Phase 8 – Enforcement layer (simulated).
-    Executes the action decided by the response engine.
+    Phase 8 – Simulated enforcement layer
     """
 
     timestamp = datetime.now(timezone.utc).isoformat()
 
     if action == "firewall_block":
-        print(f"[FIREWALL] DROP traffic from {ip}")
         return {
             "executed": True,
             "action": "firewall_block",
             "ip": ip,
+            "severity": severity,
+            "risk_score": risk_score,
             "message": "IP blocked by simulated firewall rule",
             "timestamp": timestamp
         }
-
-    if action == "rate_limit":
-        print(f"[RATE_LIMIT] Throttling traffic from {ip}")
+    if action == "throttle":
         return {
             "executed": True,
-            "action": "rate_limit",
+            "action": "throttle",
             "ip": ip,
+            "severity": severity,
+            "risk_score": risk_score,
             "message": "Traffic rate-limited",
             "timestamp": timestamp
         }
-
-    if action == "alert":
-        print(f"[ALERT] Security alert for {ip}")
+    if action == "log":
         return {
             "executed": True,
-            "action": "alert",
+            "action": "log",
             "ip": ip,
-            "message": "Security alert generated",
+            "severity": severity,
+            "risk_score": risk_score,
+            "message": "Event logged for monitoring",
             "timestamp": timestamp
         }
 
-    # Default: no action
     return {
         "executed": False,
         "action": "noop",
         "ip": ip,
+        "severity": severity,
+        "risk_score": risk_score,
         "message": "No enforcement action taken",
         "timestamp": timestamp
     }
