@@ -1,14 +1,13 @@
-# Python
+venv/
 __pycache__/
 *.pyc
-*.pyo
 
-# Virtual env
-venv/
+node_modules/
+frontend/node_modules/
 
-# macOS
-.DS_Store
+.vite/
+frontend/.vite/
 
-# Editor
-.vscode/
-
+dist/
+.env
+*.log
