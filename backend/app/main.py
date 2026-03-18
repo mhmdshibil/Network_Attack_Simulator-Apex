@@ -9,11 +9,19 @@ from backend.app.api.routes_metrics import router as metrics_router
 from backend.app.api.routes_analytics import router as analytics_router
 from backend.app.api.routes_response import router as response_router
 from backend.app.api.routes_audit import router as audit_router
-
+from backend.app.api.routes_system import router as system_router
+from fastapi.middleware.cors import CORSMiddleware
 
 
 # Initialize the FastAPI application
 app = FastAPI(title="Network Attack Simulator API")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # Include API routers
@@ -22,7 +30,7 @@ app.include_router(metrics_router)
 app.include_router(analytics_router)
 app.include_router(response_router)
 app.include_router(audit_router)
-
+app.include_router(system_router)
 
 @app.get("/api/health")
 def health():

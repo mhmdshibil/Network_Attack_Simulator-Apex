@@ -1,110 +1,232 @@
-import React, { useEffect, useState } from 'react'
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { AlertCircle } from 'lucide-react'
-import { usePolling } from '../hooks/usePolling'
+import React, { useState, useEffect } from 'react'
+import { AlertCircle, ChevronDown } from 'lucide-react'
+import { fetchTopAttackers } from '../api/api'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
-function AttackAnalytics() {
-  const { data: trendsData, error: trendsError } = usePolling('http://127.0.0.1:8000/api/analytics/attack_trends')
-  const { data: topAttackersData, error: topAttackersError } = usePolling('http://127.0.0.1:8000/api/analytics/top_attackers')
-  const { data: timelineData, error: timelineError } = usePolling('http://127.0.0.1:8000/api/analytics/timeline')
+function RiskAnalysis() {
+  const [expandedIP, setExpandedIP] = useState(null)
+  const [timeWindow, setTimeWindow] = useState('24h')
+  const [risks, setRisks] = useState([])
+  const [error, setError] = useState(null)
 
-  const attackTypeData = trendsData?.attack_trends || []
-  const attacksOverTimeData = timelineData?.timeline || []
-  const severityDistribution = topAttackersData?.severity_distribution || []
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const result = await fetchTopAttackers()
+        const attackers = result?.attackers || []
 
-  const COLORS = ['#ea4335', '#fbbc04', '#34a853']
-  const hasError = trendsError || topAttackersError || timelineError
+        // Build risk scores from attacker data
+        const computed = attackers.map(attacker => {
+          const maxCount = 200
+          const riskScore = Math.min((attacker.count / maxCount) * 100, 100)
+          const confidence = Math.min(50 + attacker.count * 0.5, 100)
+
+          let severity = 'Low'
+          if (riskScore >= 70) severity = 'High'
+          else if (riskScore >= 30) severity = 'Medium'
+
+          return {
+            ip: attacker.ip,
+            risk_score: parseFloat(riskScore.toFixed(1)),
+            confidence: parseFloat(confidence.toFixed(1)),
+            severity,
+            attack_count: attacker.count,
+            first_seen: attacker.first_seen,
+            last_seen: attacker.last_seen,
+          }
+        }).sort((a, b) => b.risk_score - a.risk_score)
+
+        setRisks(computed)
+        setError(null)
+      } catch (err) {
+        setError(err.message)
+      }
+    }
+
+    loadData()
+    const interval = setInterval(loadData, 5000)
+    return () => clearInterval(interval)
+  }, [timeWindow])
+
+  const getSeverityBadge = (score) => {
+    if (score < 30) return { text: 'Low', color: '#34a853' }
+    if (score < 70) return { text: 'Medium', color: '#fbbc04' }
+    return { text: 'High', color: '#ea4335' }
+  }
+
+  const getConfidenceBar = (confidence) => (
+    <div className="risk-bar">
+      <span style={{ minWidth: '36px', fontSize: '12px' }}>{confidence.toFixed(1)}%</span>
+      <div className="risk-bar-container">
+        <div
+          className="risk-bar-fill"
+          style={{
+            width: `${Math.min(confidence, 100)}%`,
+            background: confidence > 70 ? '#34a853' : confidence > 40 ? '#fbbc04' : '#ea4335',
+          }}
+        />
+      </div>
+    </div>
+  )
 
   return (
     <div>
       <div style={{ marginBottom: '32px' }}>
         <h2 style={{ fontSize: '32px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '8px' }}>
-          Attack Analytics
+          Risk Analysis
         </h2>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Trends and insights from attack data</p>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
+          Intelligence-driven per-IP risk assessment
+        </p>
       </div>
 
-      {hasError && (
+      {error && (
         <div className="demo-banner">
           <AlertCircle size={16} />
           Backend offline - Check your API connection
         </div>
       )}
 
-      {attackTypeData.length > 0 && (
-        <div className="chart-container">
-          <h3 className="chart-title">Attack Type Distribution</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={attackTypeData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" />
-              <XAxis dataKey="name" stroke="var(--text-tertiary)" />
-              <YAxis stroke="var(--text-tertiary)" />
-              <Tooltip 
-                contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-medium)', borderRadius: '8px' }}
-                labelStyle={{ color: 'var(--text-primary)' }}
-              />
-              <Bar dataKey="value" fill="#fbbc04" />
-            </BarChart>
-          </ResponsiveContainer>
+      <div className="table-container">
+        <div className="table-header">
+          <div>
+            <h3 className="chart-title">Risk Scores by IP</h3>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+              Click row to expand details
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {['1h', '24h'].map(w => (
+              <button
+                key={w}
+                onClick={() => setTimeWindow(w)}
+                style={{
+                  padding: '6px 12px',
+                  background: timeWindow === w ? '#1f71e5' : 'transparent',
+                  color: timeWindow === w ? 'white' : '#5f6368',
+                  border: '1px solid #dadce0',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                }}
+              >
+                {w}
+              </button>
+            ))}
+          </div>
         </div>
-      )}
 
-      <div className="grid-2">
-        {attacksOverTimeData.length > 0 && (
-          <div className="chart-container">
-            <h3 className="chart-title">Attacks Over Time</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={attacksOverTimeData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-light)" />
-                <XAxis dataKey="time" stroke="var(--text-tertiary)" />
-                <YAxis stroke="var(--text-tertiary)" />
-                <Tooltip 
-                  contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-medium)', borderRadius: '8px' }}
-                  labelStyle={{ color: 'var(--text-primary)' }}
-                />
-                <Line type="monotone" dataKey="count" stroke="#ea4335" dot={false} strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-
-        {severityDistribution.length > 0 && (
-          <div className="chart-container">
-            <h3 className="chart-title">Severity Distribution</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie
-                  data={severityDistribution}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={2}
-                  dataKey="value"
+        {risks.length > 0 ? (
+          <div className="expandable-table">
+            {risks.map((risk, index) => (
+              <div key={index} className="expandable-row-wrapper">
+                <div
+                  className="expandable-row"
+                  onClick={() => setExpandedIP(expandedIP === index ? null : index)}
+                  style={{
+                    background: risk.risk_score > 70 ? 'rgba(234, 67, 53, 0.05)' : 'transparent',
+                    cursor: 'pointer',
+                  }}
                 >
-                  {severityDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                  contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-medium)', borderRadius: '8px' }}
-                  labelStyle={{ color: 'var(--text-primary)' }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '16px', fontSize: '14px' }}>
-              {severityDistribution.map((item, index) => (
-                <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '12px', height: '12px', background: COLORS[index % COLORS.length], borderRadius: '2px' }}></span>
-                  <span>{item.name} {((item.value / severityDistribution.reduce((sum, x) => sum + x.value, 0)) * 100).toFixed(0)}%</span>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    width: '100%',
+                    gap: '16px',
+                    padding: '12px 16px',
+                  }}>
+                    <ChevronDown
+                      size={18}
+                      style={{
+                        transform: expandedIP === index ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.2s',
+                        color: 'var(--text-secondary)',
+                        flexShrink: 0,
+                      }}
+                    />
+                    <div style={{ minWidth: '130px' }}>
+                      <div style={{ fontFamily: 'monospace', fontSize: '13px', color: 'var(--accent-blue)' }}>
+                        {risk.ip}
+                      </div>
+                    </div>
+                    <div style={{ minWidth: '130px' }}>
+                      <div className="risk-bar">
+                        <span style={{ minWidth: '36px', fontSize: '12px' }}>{risk.risk_score.toFixed(1)}</span>
+                        <div className="risk-bar-container">
+                          <div
+                            className="risk-bar-fill"
+                            style={{
+                              width: `${Math.min(risk.risk_score, 100)}%`,
+                              background: risk.risk_score > 70 ? '#ea4335' : risk.risk_score > 40 ? '#fbbc04' : '#34a853',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ minWidth: '80px' }}>
+                      <span style={{
+                        background: getSeverityBadge(risk.risk_score).color + '20',
+                        color: getSeverityBadge(risk.risk_score).color,
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        fontWeight: 500,
+                      }}>
+                        {getSeverityBadge(risk.risk_score).text}
+                      </span>
+                    </div>
+                    <div style={{ minWidth: '160px' }}>
+                      {getConfidenceBar(risk.confidence)}
+                    </div>
+                    <div style={{ minWidth: '80px', textAlign: 'right', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                      {risk.attack_count} attacks
+                    </div>
+                  </div>
                 </div>
-              ))}
-            </div>
+
+                {expandedIP === index && (
+                  <div className="expanded-details">
+                    <div style={{ padding: '16px', borderLeft: '3px solid #1f71e5', background: 'var(--bg-card)' }}>
+                      <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                        <div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>FIRST SEEN</div>
+                          <div style={{ fontSize: '13px', color: 'var(--text-primary)' }}>
+                            {new Date(risk.first_seen).toLocaleString()}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>LAST SEEN</div>
+                          <div style={{ fontSize: '13px', color: 'var(--text-primary)' }}>
+                            {new Date(risk.last_seen).toLocaleString()}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>TOTAL ATTACKS</div>
+                          <div style={{ fontSize: '13px', color: '#ea4335', fontWeight: 600 }}>
+                            {risk.attack_count}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>RISK SCORE</div>
+                          <div style={{ fontSize: '13px', color: getSeverityBadge(risk.risk_score).color, fontWeight: 600 }}>
+                            {risk.risk_score.toFixed(1)} / 100
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
+        ) : (
+          <p style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+            {error ? 'Unable to load risk data' : 'No risk data available'}
+          </p>
         )}
       </div>
     </div>
   )
 }
 
-export default AttackAnalytics
+export default RiskAnalysis
