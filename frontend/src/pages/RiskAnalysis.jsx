@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from 'react'
 import { AlertCircle, ChevronDown } from 'lucide-react'
 import { fetchTopAttackers } from '../api/api'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+
+const T = {
+  border:  '#232328',
+  text:    '#F2F3F5',
+  muted:   '#6E7180',
+  accent:  '#2DD9FF',
+  danger:  '#FF3B5C',
+  warning: '#FFA63D',
+}
 
 function RiskAnalysis() {
   const [expandedIP, setExpandedIP] = useState(null)
@@ -10,21 +18,16 @@ function RiskAnalysis() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    const loadData = async () => {
+    const load = async () => {
       try {
         const result = await fetchTopAttackers()
         const attackers = result?.attackers || []
-
-        // Build risk scores from attacker data
         const computed = attackers.map(attacker => {
-          const maxCount = 200
-          const riskScore = Math.min((attacker.count / maxCount) * 100, 100)
+          const riskScore  = Math.min((attacker.count / 200) * 100, 100)
           const confidence = Math.min(50 + attacker.count * 0.5, 100)
-
           let severity = 'Low'
           if (riskScore >= 70) severity = 'High'
           else if (riskScore >= 30) severity = 'Medium'
-
           return {
             ip: attacker.ip,
             risk_score: parseFloat(riskScore.toFixed(1)),
@@ -35,194 +38,124 @@ function RiskAnalysis() {
             last_seen: attacker.last_seen,
           }
         }).sort((a, b) => b.risk_score - a.risk_score)
-
         setRisks(computed)
         setError(null)
-      } catch (err) {
-        setError(err.message)
-      }
+      } catch (err) { setError(err.message) }
     }
-
-    loadData()
-    const interval = setInterval(loadData, 5000)
-    return () => clearInterval(interval)
+    load()
+    const iv = setInterval(load, 5000)
+    return () => clearInterval(iv)
   }, [timeWindow])
 
-  const getSeverityBadge = (score) => {
-    if (score < 30) return { text: 'Low', color: '#34a853' }
-    if (score < 70) return { text: 'Medium', color: '#fbbc04' }
-    return { text: 'High', color: '#ea4335' }
-  }
-
-  const getConfidenceBar = (confidence) => (
-    <div className="risk-bar">
-      <span style={{ minWidth: '36px', fontSize: '12px' }}>{confidence.toFixed(1)}%</span>
-      <div className="risk-bar-container">
-        <div
-          className="risk-bar-fill"
-          style={{
-            width: `${Math.min(confidence, 100)}%`,
-            background: confidence > 70 ? '#34a853' : confidence > 40 ? '#fbbc04' : '#ea4335',
-          }}
-        />
-      </div>
-    </div>
-  )
+  const sevColor = (score) => score >= 70 ? T.danger : score >= 30 ? T.warning : T.accent
 
   return (
     <div>
-      <div style={{ marginBottom: '32px' }}>
-        <h2 style={{ fontSize: '32px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '8px' }}>
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 600, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>
+          Intelligence
+        </div>
+        <div style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: '20px', fontWeight: 600, color: T.text, letterSpacing: '-0.01em' }}>
           Risk Analysis
-        </h2>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
-          Intelligence-driven per-IP risk assessment
-        </p>
+        </div>
       </div>
 
       {error && (
-        <div className="demo-banner">
-          <AlertCircle size={16} />
-          Backend offline - Check your API connection
-        </div>
+        <div className="demo-banner"><AlertCircle size={13} /> Backend offline — check API connection</div>
       )}
 
       <div className="table-container">
         <div className="table-header">
           <div>
-            <h3 className="chart-title">Risk Scores by IP</h3>
-            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-              Click row to expand details
-            </p>
+            <span className="chart-title" style={{ margin: 0 }}>Risk scores by IP</span>
+            <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.muted, marginTop: '3px' }}>click row to expand</div>
           </div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '4px' }}>
             {['1h', '24h'].map(w => (
-              <button
-                key={w}
-                onClick={() => setTimeWindow(w)}
-                style={{
-                  padding: '6px 12px',
-                  background: timeWindow === w ? '#1f71e5' : 'transparent',
-                  color: timeWindow === w ? 'white' : '#5f6368',
-                  border: '1px solid #dadce0',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                }}
-              >
-                {w}
-              </button>
+              <button key={w} onClick={() => setTimeWindow(w)} className={`time-btn ${timeWindow === w ? 'active' : ''}`}>{w}</button>
             ))}
           </div>
         </div>
 
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '8px 16px 8px 20px', borderBottom: `1px solid ${T.border}` }}>
+          <div style={{ width: '16px' }} />
+          <div style={{ minWidth: '140px', fontFamily: "'IBM Plex Sans',sans-serif", fontSize: '10px', fontWeight: 600, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>IP Address</div>
+          <div style={{ minWidth: '140px', fontFamily: "'IBM Plex Sans',sans-serif", fontSize: '10px', fontWeight: 600, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Risk Score</div>
+          <div style={{ minWidth: '80px',  fontFamily: "'IBM Plex Sans',sans-serif", fontSize: '10px', fontWeight: 600, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Severity</div>
+          <div style={{ minWidth: '150px', fontFamily: "'IBM Plex Sans',sans-serif", fontSize: '10px', fontWeight: 600, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Confidence</div>
+          <div style={{ marginLeft: 'auto', fontFamily: "'IBM Plex Sans',sans-serif", fontSize: '10px', fontWeight: 600, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Events</div>
+        </div>
+
         {risks.length > 0 ? (
           <div className="expandable-table">
-            {risks.map((risk, index) => (
-              <div key={index} className="expandable-row-wrapper">
-                <div
-                  className="expandable-row"
-                  onClick={() => setExpandedIP(expandedIP === index ? null : index)}
-                  style={{
-                    background: risk.risk_score > 70 ? 'rgba(234, 67, 53, 0.05)' : 'transparent',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    width: '100%',
-                    gap: '16px',
-                    padding: '12px 16px',
-                  }}>
-                    <ChevronDown
-                      size={18}
-                      style={{
-                        transform: expandedIP === index ? 'rotate(180deg)' : 'rotate(0deg)',
-                        transition: 'transform 0.2s',
-                        color: 'var(--text-secondary)',
-                        flexShrink: 0,
-                      }}
-                    />
-                    <div style={{ minWidth: '130px' }}>
-                      <div style={{ fontFamily: 'monospace', fontSize: '13px', color: 'var(--accent-blue)' }}>
-                        {risk.ip}
-                      </div>
-                    </div>
-                    <div style={{ minWidth: '130px' }}>
-                      <div className="risk-bar">
-                        <span style={{ minWidth: '36px', fontSize: '12px' }}>{risk.risk_score.toFixed(1)}</span>
-                        <div className="risk-bar-container">
-                          <div
-                            className="risk-bar-fill"
-                            style={{
-                              width: `${Math.min(risk.risk_score, 100)}%`,
-                              background: risk.risk_score > 70 ? '#ea4335' : risk.risk_score > 40 ? '#fbbc04' : '#34a853',
-                            }}
-                          />
+            {risks.map((risk, i) => {
+              const sc = sevColor(risk.risk_score)
+              const isOpen = expandedIP === i
+              return (
+                <div key={i} className="expandable-row-wrapper">
+                  <div
+                    className="expandable-row"
+                    onClick={() => setExpandedIP(isOpen ? null : i)}
+                    style={{ borderLeft: risk.risk_score >= 70 ? `2px solid rgba(255,59,92,0.4)` : '2px solid transparent' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '10px 16px 10px 18px' }}>
+                      <ChevronDown size={13} style={{ color: T.muted, flexShrink: 0, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+                      <div style={{ minWidth: '140px', fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', color: T.accent }}>{risk.ip}</div>
+                      <div style={{ minWidth: '140px' }}>
+                        <div className="risk-bar">
+                          <span style={{ minWidth: '36px', color: sc }}>{risk.risk_score.toFixed(1)}</span>
+                          <div className="risk-bar-container">
+                            <div className="risk-bar-fill" style={{ width: `${Math.min(risk.risk_score, 100)}%`, background: sc }} />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div style={{ minWidth: '80px' }}>
-                      <span style={{
-                        background: getSeverityBadge(risk.risk_score).color + '20',
-                        color: getSeverityBadge(risk.risk_score).color,
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        fontWeight: 500,
-                      }}>
-                        {getSeverityBadge(risk.risk_score).text}
-                      </span>
-                    </div>
-                    <div style={{ minWidth: '160px' }}>
-                      {getConfidenceBar(risk.confidence)}
-                    </div>
-                    <div style={{ minWidth: '80px', textAlign: 'right', color: 'var(--text-secondary)', fontSize: '13px' }}>
-                      {risk.attack_count} attacks
+                      <div style={{ minWidth: '80px' }}>
+                        <span style={{
+                          background: sc + '18', color: sc, border: `1px solid ${sc}30`,
+                          padding: '2px 8px', borderRadius: '2px',
+                          fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 600,
+                          textTransform: 'uppercase', letterSpacing: '0.04em',
+                        }}>{risk.severity}</span>
+                      </div>
+                      <div style={{ minWidth: '150px' }}>
+                        <div className="risk-bar">
+                          <span style={{ minWidth: '36px', color: T.muted }}>{risk.confidence.toFixed(0)}%</span>
+                          <div className="risk-bar-container">
+                            <div className="risk-bar-fill" style={{ width: `${Math.min(risk.confidence, 100)}%`, background: risk.confidence > 70 ? T.accent : risk.confidence > 40 ? T.warning : T.danger }} />
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ marginLeft: 'auto', fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: T.muted }}>
+                        {risk.attack_count}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {expandedIP === index && (
-                  <div className="expanded-details">
-                    <div style={{ padding: '16px', borderLeft: '3px solid #1f71e5', background: 'var(--bg-card)' }}>
-                      <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap', marginBottom: '12px' }}>
-                        <div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>FIRST SEEN</div>
-                          <div style={{ fontSize: '13px', color: 'var(--text-primary)' }}>
-                            {new Date(risk.first_seen).toLocaleString()}
+                  {isOpen && (
+                    <div className="expanded-details">
+                      <div style={{ display: 'flex', gap: '0', flexWrap: 'wrap', padding: '0' }}>
+                        {[
+                          { label: 'First Seen',   value: new Date(risk.first_seen).toLocaleString() },
+                          { label: 'Last Seen',    value: new Date(risk.last_seen).toLocaleString() },
+                          { label: 'Total Events', value: String(risk.attack_count) },
+                          { label: 'Risk Score',   value: `${risk.risk_score.toFixed(1)} / 100` },
+                        ].map((d, j) => (
+                          <div key={j} style={{ flex: '1 1 180px', padding: '14px 20px', borderRight: `1px solid ${T.border}` }}>
+                            <div style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: '10px', fontWeight: 600, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>{d.label}</div>
+                            <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', color: j === 2 ? T.danger : j === 3 ? sc : T.text }}>{d.value}</div>
                           </div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>LAST SEEN</div>
-                          <div style={{ fontSize: '13px', color: 'var(--text-primary)' }}>
-                            {new Date(risk.last_seen).toLocaleString()}
-                          </div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>TOTAL ATTACKS</div>
-                          <div style={{ fontSize: '13px', color: '#ea4335', fontWeight: 600 }}>
-                            {risk.attack_count}
-                          </div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>RISK SCORE</div>
-                          <div style={{ fontSize: '13px', color: getSeverityBadge(risk.risk_score).color, fontWeight: 600 }}>
-                            {risk.risk_score.toFixed(1)} / 100
-                          </div>
-                        </div>
+                        ))}
                       </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            ))}
+                  )}
+                </div>
+              )
+            })}
           </div>
         ) : (
-          <p style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-            {error ? 'Unable to load risk data' : 'No risk data available'}
-          </p>
+          <div style={{ padding: '40px 20px', textAlign: 'center', fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', color: T.muted }}>
+            {error ? 'unable to load risk data' : 'no risk data available'}
+          </div>
         )}
       </div>
     </div>

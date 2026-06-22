@@ -3,23 +3,26 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 import { AlertCircle, Wifi } from 'lucide-react'
 import { fetchTimeline } from '../api/api'
 
-const CyberTooltip = ({ active, payload, label }) => {
+const T = {
+  bg:      '#131316',
+  border:  '#232328',
+  text:    '#F2F3F5',
+  muted:   '#6E7180',
+  accent:  '#2DD9FF',
+  danger:  '#FF3B5C',
+}
+
+const SOCTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
     <div style={{
-      background: 'rgba(0,0,0,0.92)',
-      border: '1px solid #4285f4',
-      borderRadius: '6px',
-      padding: '10px 14px',
-      fontSize: '13px',
-      color: '#e8eaed',
-      boxShadow: '0 0 20px rgba(66,133,244,0.35)',
+      background: T.bg, border: `1px solid ${T.border}`, borderRadius: '2px',
+      padding: '10px 14px', fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: T.text,
     }}>
-      <div style={{ color: '#4285f4', marginBottom: '6px', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>{label}</div>
+      <div style={{ color: T.muted, marginBottom: '6px', letterSpacing: '0.05em' }}>{label}</div>
       {payload.map((p, i) => (
-        <div key={i} style={{ color: p.color, marginTop: '3px', display: 'flex', justifyContent: 'space-between', gap: '16px' }}>
-          <span style={{ opacity: 0.7 }}>{p.name}</span>
-          <strong>{p.value}</strong>
+        <div key={i} style={{ color: p.color, display: 'flex', justifyContent: 'space-between', gap: '20px', marginTop: '3px' }}>
+          <span style={{ opacity: 0.6 }}>{p.name}</span><strong>{p.value}</strong>
         </div>
       ))}
     </div>
@@ -38,135 +41,84 @@ function LiveTraffic() {
         const mapped = (result.timeline || []).map(item => ({
           timestamp: new Date(item.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           packet_count: item.packets,
-          event_count: item.events
+          event_count: item.events,
         }))
         setData(mapped)
         setError(null)
-      } catch (err) {
-        setError(err.message)
-      }
+      } catch (err) { setError(err.message) }
     }
-
     loadData()
-    const interval = setInterval(loadData, 5000)
-    return () => clearInterval(interval)
+    const iv = setInterval(loadData, 5000)
+    return () => clearInterval(iv)
   }, [timeRange])
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
         <div>
-          <h2 style={{ fontSize: '32px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '8px', fontFamily: 'var(--font-main)', letterSpacing: '0.02em' }}>
+          <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 600, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>
             Live Traffic Monitor
-          </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '16px', fontFamily: 'var(--font-main)' }}>
-            Real-time network activity visualization
-          </p>
+          </div>
+          <div style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: '20px', fontWeight: 600, color: T.text, letterSpacing: '-0.01em' }}>
+            Network Activity
+          </div>
         </div>
         <div className="time-range-buttons">
-          <button className={`time-btn ${timeRange === '5m'  ? 'active' : ''}`} onClick={() => setTimeRange('5m')}>5 Minutes</button>
-          <button className={`time-btn ${timeRange === '1h'  ? 'active' : ''}`} onClick={() => setTimeRange('1h')}>1 Hour</button>
-          <button className={`time-btn ${timeRange === '24h' ? 'active' : ''}`} onClick={() => setTimeRange('24h')}>24 Hours</button>
+          {['5m', '1h', '24h'].map(r => (
+            <button key={r} className={`time-btn ${timeRange === r ? 'active' : ''}`} onClick={() => setTimeRange(r)}>
+              {r}
+            </button>
+          ))}
         </div>
       </div>
 
       {error && (
-        <div className="demo-banner">
-          <AlertCircle size={16} />
-          Backend offline — Check your API connection
-        </div>
+        <div className="demo-banner"><AlertCircle size={13} /> Backend offline — check API connection</div>
       )}
 
       {data.length > 0 ? (
-        <div className="chart-container" style={{
-          background: 'linear-gradient(135deg, rgba(66,133,244,0.04) 0%, rgba(0,0,0,0) 60%)',
-          border: '1px solid rgba(66,133,244,0.2)',
-          position: 'relative',
-          overflow: 'hidden',
-        }}>
-          {/* scan-line overlay */}
-          <div style={{
-            position: 'absolute', inset: 0, pointerEvents: 'none',
-            backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(66,133,244,0.03) 3px, rgba(66,133,244,0.03) 4px)',
-          }} />
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
-            <Wifi size={18} style={{ color: '#4285f4' }} />
-            <h3 className="chart-title" style={{ margin: 0 }}>Traffic Over Time</h3>
-            <span style={{
-              marginLeft: 'auto', fontSize: '12px', color: '#4285f4',
-              fontFamily: 'var(--font-mono)', letterSpacing: '0.06em',
-              background: 'rgba(66,133,244,0.1)', padding: '3px 10px',
-              borderRadius: '4px', border: '1px solid rgba(66,133,244,0.2)',
-            }}>
+        <div className="chart-container">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+            <Wifi size={12} style={{ color: T.muted }} />
+            <span className="chart-title" style={{ margin: 0 }}>Traffic over time</span>
+            <span style={{ marginLeft: 'auto', fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.accent, letterSpacing: '0.06em' }}>
               LIVE · {timeRange.toUpperCase()}
             </span>
           </div>
 
-          <ResponsiveContainer width="100%" height={350}>
-            <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={340}>
+            <AreaChart data={data} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
               <defs>
-                <linearGradient id="packetGradLT" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#4285f4" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#4285f4" stopOpacity={0} />
+                <linearGradient id="gPktsLT" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor={T.accent} className="breathe-stop" />
+                  <stop offset="95%" stopColor={T.accent} stopOpacity={0}/>
                 </linearGradient>
-                <linearGradient id="eventGradLT" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#ea4335" stopOpacity={0.35} />
-                  <stop offset="95%" stopColor="#ea4335" stopOpacity={0} />
+                <linearGradient id="gEvtsLT" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor={T.danger} stopOpacity={0.14}/>
+                  <stop offset="95%" stopColor={T.danger} stopOpacity={0}/>
                 </linearGradient>
               </defs>
-
-              {/* No CartesianGrid — clean cyber look */}
-              <XAxis
-                dataKey="timestamp"
-                tick={{ fontSize: 12, fill: 'rgba(255,255,255,0.35)', fontFamily: 'var(--font-mono)' }}
-                axisLine={{ stroke: 'rgba(66,133,244,0.2)' }}
-                tickLine={false}
-                interval="preserveStartEnd"
-              />
-              <YAxis
-                tick={{ fontSize: 12, fill: 'rgba(255,255,255,0.35)', fontFamily: 'var(--font-mono)' }}
-                axisLine={false}
-                tickLine={false}
-                width={40}
-              />
-              <Tooltip content={<CyberTooltip />} />
-
-              <Area
-                type="monotone"
-                dataKey="packet_count"
-                stroke="#4285f4"
-                strokeWidth={2}
-                fill="url(#packetGradLT)"
-                dot={false}
-                name="Packets"
-              />
-              <Area
-                type="monotone"
-                dataKey="event_count"
-                stroke="#ea4335"
-                strokeWidth={1.5}
-                fill="url(#eventGradLT)"
-                dot={false}
-                name="Events"
-              />
+              <XAxis dataKey="timestamp" tick={{ fontSize: 10, fill: T.muted, fontFamily: "'IBM Plex Mono'" }} axisLine={{ stroke: T.border }} tickLine={false} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 10, fill: T.muted, fontFamily: "'IBM Plex Mono'" }} axisLine={false} tickLine={false} width={32} />
+              <Tooltip content={<SOCTooltip />} />
+              <Area type="monotone" dataKey="packet_count" stroke={T.accent} strokeWidth={1.5} fill="url(#gPktsLT)" dot={false} name="Packets" />
+              <Area type="monotone" dataKey="event_count"  stroke={T.danger} strokeWidth={1}   fill="url(#gEvtsLT)" dot={false} name="Events" />
             </AreaChart>
           </ResponsiveContainer>
 
-          {/* Legend */}
-          <div style={{ display: 'flex', gap: '24px', marginTop: '16px', justifyContent: 'center' }}>
-            {[{ color: '#4285f4', label: 'Packets' }, { color: '#ea4335', label: 'Events' }].map((item, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)', fontFamily: 'var(--font-main)', fontWeight: 600 }}>
-                <div style={{ width: '24px', height: '2px', background: item.color, borderRadius: '2px' }} />
-                {item.label}
+          <div style={{ display: 'flex', gap: '20px', marginTop: '12px', paddingTop: '12px', borderTop: `1px solid ${T.border}` }}>
+            {[{ c: T.accent, l: 'Packets' }, { c: T.danger, l: 'Events' }].map((x, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontFamily: "'IBM Plex Mono'", fontSize: '10px', color: T.muted }}>
+                <div style={{ width: '18px', height: '2px', background: x.c }} />
+                {x.l}
               </div>
             ))}
           </div>
         </div>
       ) : (
         !error && (
-          <div className="chart-container" style={{ textAlign: 'center', padding: '60px', color: 'var(--text-secondary)', fontFamily: 'var(--font-main)', fontSize: '16px' }}>
-            No traffic data available for this time range.
+          <div className="chart-container" style={{ textAlign: 'center', padding: '60px 20px', fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', color: T.muted }}>
+            no data for {timeRange} window
           </div>
         )
       )}

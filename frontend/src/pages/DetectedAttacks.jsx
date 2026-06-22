@@ -1,69 +1,72 @@
 import React, { useEffect, useState } from 'react'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, AlertTriangle } from 'lucide-react'
 import { fetchDetections } from '../api/api'
+
+const T = {
+  border:  '#232328',
+  text:    '#F2F3F5',
+  muted:   '#6E7180',
+  accent:  '#2DD9FF',
+  danger:  '#FF3B5C',
+  warning: '#FFA63D',
+}
+
+const LABEL_COLORS = {
+  ddos:          '#FF3B5C',
+  port_scan:     '#FFA63D',
+  sql_injection: '#FF6D3B',
+  bruteforce:    '#9B59B6',
+  malware:       '#FF3B5C',
+}
+
+const ACTION_STYLE = {
+  blocked:      { color: '#FF3B5C', bg: 'rgba(255,59,92,0.1)',   border: 'rgba(255,59,92,0.25)',   label: 'BLOCK' },
+  rate_limited: { color: '#FFA63D', bg: 'rgba(255,166,61,0.1)',  border: 'rgba(255,166,61,0.25)',  label: 'RATE-LIMIT' },
+  monitored:    { color: '#2DD9FF', bg: 'rgba(45,217,255,0.08)', border: 'rgba(45,217,255,0.2)',   label: 'MONITOR' },
+}
 
 function DetectedAttacks() {
   const [attacks, setAttacks] = useState([])
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    const loadData = async () => {
+    const load = async () => {
       try {
         const result = await fetchDetections()
-        // API returns a plain array directly
         const list = Array.isArray(result) ? result : (result?.detections || [])
-        setAttacks([...list].reverse()) // most recent first
+        setAttacks([...list].reverse())
         setError(null)
-      } catch (err) {
-        setError(err.message)
-      }
+      } catch (err) { setError(err.message) }
     }
-
-    loadData()
-    const interval = setInterval(loadData, 5000)
-    return () => clearInterval(interval)
+    load()
+    const iv = setInterval(load, 5000)
+    return () => clearInterval(iv)
   }, [])
-
-  const getActionBadge = (action) => {
-    if (action === 'blocked') return { label: 'Blocked', color: '#ea4335' }
-    if (action === 'rate_limited') return { label: 'Rate Limited', color: '#fbbc04' }
-    if (action === 'monitored') return { label: 'Monitored', color: '#34a853' }
-    return { label: action || 'Unknown', color: '#5f6368' }
-  }
-
-  const getLabelColor = (label) => {
-    const colors = {
-      ddos: '#ea4335',
-      port_scan: '#fbbc04',
-      sql_injection: '#ff6d00',
-      bruteforce: '#9c27b0',
-      malware: '#f44336',
-    }
-    return colors[label] || '#4285f4'
-  }
 
   return (
     <div>
-      <div style={{ marginBottom: '32px' }}>
-        <h2 style={{ fontSize: '32px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '8px' }}>
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 600, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>
+          Detection Log
+        </div>
+        <div style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: '20px', fontWeight: 600, color: T.text, letterSpacing: '-0.01em' }}>
           Detected Attacks
-        </h2>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Real-time attack detection log</p>
+        </div>
       </div>
 
       {error && (
-        <div className="demo-banner">
-          <AlertCircle size={16} />
-          Backend offline - Check your API connection
-        </div>
+        <div className="demo-banner"><AlertCircle size={13} /> Backend offline — check API connection</div>
       )}
 
       <div className="table-container">
         <div className="table-header">
-          <h3 className="chart-title">Detection Log</h3>
-          <div style={{ fontSize: '12px', color: '#ea4335', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ width: '8px', height: '8px', background: '#ea4335', borderRadius: '50%', display: 'inline-block' }}></span>
-            Auto-refresh every 5s
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <AlertTriangle size={12} style={{ color: T.danger }} />
+            <span className="chart-title" style={{ margin: 0 }}>Attack events</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.muted }}>
+            <span style={{ width: '5px', height: '5px', background: T.accent, display: 'inline-block', borderRadius: '50%' }} />
+            auto-refresh 5s
           </div>
         </div>
 
@@ -78,38 +81,37 @@ function DetectedAttacks() {
               </tr>
             </thead>
             <tbody>
-              {attacks.map((attack, index) => {
-                const badge = getActionBadge(attack.action)
+              {attacks.map((attack, i) => {
+                const labelColor = LABEL_COLORS[attack.label] || '#4A7FD4'
+                const actionStyle = ACTION_STYLE[attack.action] || { color: T.muted, bg: 'rgba(110,113,128,0.1)', border: 'rgba(110,113,128,0.2)', label: attack.action || '—' }
                 return (
-                  <tr key={index}>
-                    <td style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
+                  <tr key={i}>
+                    <td style={{ color: T.muted, fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px' }}>
                       {new Date(attack.timestamp).toLocaleString()}
                     </td>
-                    <td style={{ color: 'var(--accent-blue)', fontFamily: 'monospace', fontSize: '13px' }}>
+                    <td style={{ color: T.accent, fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px' }}>
                       {attack.ip}
                     </td>
                     <td>
                       <span style={{
-                        background: getLabelColor(attack.label) + '20',
-                        color: getLabelColor(attack.label),
-                        padding: '3px 8px',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        fontWeight: 500,
+                        background: labelColor + '18', color: labelColor,
+                        border: `1px solid ${labelColor}30`,
+                        padding: '2px 8px', borderRadius: '2px',
+                        fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 600,
+                        textTransform: 'uppercase', letterSpacing: '0.04em',
                       }}>
-                        {attack.label}
+                        {attack.label?.replace('_', ' ')}
                       </span>
                     </td>
                     <td>
                       <span style={{
-                        background: badge.color + '20',
-                        color: badge.color,
-                        padding: '3px 8px',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        fontWeight: 500,
+                        background: actionStyle.bg, color: actionStyle.color,
+                        border: `1px solid ${actionStyle.border}`,
+                        padding: '2px 8px', borderRadius: '2px',
+                        fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 600,
+                        letterSpacing: '0.04em',
                       }}>
-                        {badge.label}
+                        {actionStyle.label}
                       </span>
                     </td>
                   </tr>
@@ -118,9 +120,9 @@ function DetectedAttacks() {
             </tbody>
           </table>
         ) : (
-          <p style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-            {error ? 'Unable to load detections' : 'No attacks detected'}
-          </p>
+          <div style={{ padding: '40px 20px', textAlign: 'center', fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', color: T.muted }}>
+            {error ? 'unable to load detections' : 'no attacks detected'}
+          </div>
         )}
       </div>
     </div>

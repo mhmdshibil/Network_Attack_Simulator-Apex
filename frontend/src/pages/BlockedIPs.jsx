@@ -1,6 +1,16 @@
 import React, { useEffect, useState } from 'react'
-import { AlertCircle, RefreshCw } from 'lucide-react'
+import { AlertCircle, RefreshCw, Lock } from 'lucide-react'
 import { fetchBlockedIPs } from '../api/api'
+import { useCountUp } from '../hooks/useCountUp'
+
+const T = {
+  border:  '#232328',
+  text:    '#F2F3F5',
+  muted:   '#6E7180',
+  accent:  '#2DD9FF',
+  danger:  '#FF3B5C',
+  warning: '#FFA63D',
+}
 
 function BlockedIPs() {
   const [data, setData] = useState(null)
@@ -13,111 +23,95 @@ function BlockedIPs() {
       const result = await fetchBlockedIPs()
       setData(result)
       setError(null)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setRefreshing(false)
-    }
+    } catch (err) { setError(err.message) }
+    finally { setRefreshing(false) }
   }
 
   useEffect(() => {
     loadData()
-    const interval = setInterval(loadData, 5000)
-    return () => clearInterval(interval)
+    const iv = setInterval(loadData, 5000)
+    return () => clearInterval(iv)
   }, [])
 
   const blockedIPs = data?.blocked_ips || []
   const stats = data?.stats || {}
 
-  const getRiskColor = (score) => {
-    if (score < 30) return 'risk-low'
-    if (score < 70) return 'risk-medium'
-    return 'risk-high'
-  }
+  const totalBlocked = stats.total_blocked ?? blockedIPs.length
+  const countTotal = useCountUp(typeof totalBlocked === 'number' ? totalBlocked : null)
 
-  const getLabelColor = (reason) => {
-    const colors = {
-      ddos: '#ea4335',
-      port_scan: '#fbbc04',
-      sql_injection: '#ff6d00',
-      bruteforce: '#9c27b0',
-      malware: '#f44336',
-    }
-    return colors[reason] || '#4285f4'
+  const sevColor = (score) => score >= 70 ? T.danger : score >= 30 ? T.warning : T.accent
+
+  const REASON_COLORS = {
+    ddos: '#FF3B5C', port_scan: '#FFA63D', sql_injection: '#FF6D3B',
+    bruteforce: '#9B59B6', malware: '#FF3B5C',
   }
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
         <div>
-          <h2 style={{ fontSize: '32px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '8px' }}>
+          <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 600, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>
+            Defense Actions
+          </div>
+          <div style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: '20px', fontWeight: 600, color: T.text, letterSpacing: '-0.01em' }}>
             Blocked IPs
-          </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Automated defense actions log</p>
+          </div>
         </div>
-
         <button
           onPointerDown={loadData}
-          className="header-action"
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '8px 16px',
-            background: refreshing ? '#1557b0' : '#1f71e5',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '7px 14px',
+            background: 'transparent',
+            color: refreshing ? T.muted : T.text,
+            border: `1px solid ${T.border}`,
+            borderRadius: '2px',
             cursor: 'pointer',
-            fontSize: '14px',
-            opacity: refreshing ? 0.8 : 1,
-            transition: 'background 0.2s',
+            fontFamily: "'IBM Plex Mono',monospace",
+            fontSize: '11px',
+            fontWeight: 600,
+            letterSpacing: '0.04em',
+            transition: 'border-color 0.1s, color 0.1s',
           }}
         >
-          <RefreshCw size={16} style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }} />
-          {refreshing ? 'Refreshing...' : 'Refresh'}
+          <RefreshCw size={12} style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }} />
+          {refreshing ? 'refreshing' : 'refresh'}
         </button>
       </div>
 
       {error && (
-        <div className="demo-banner">
-          <AlertCircle size={16} />
-          Backend offline - Check your API connection
-        </div>
+        <div className="demo-banner"><AlertCircle size={13} /> Backend offline — check API connection</div>
       )}
 
-      <div className="grid-3">
-        <div className="metric-card">
-          <div className="metric-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ color: '#ea4335', fontSize: '16px' }}>🚫</span>
-            Total Blocked
-          </div>
-          <div className="metric-value">{stats.total_blocked || 0}</div>
+      <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginBottom: '16px' }}>
+        <div className="metric-card risky">
+          <div className="metric-label"><Lock size={11} style={{ color: T.danger }} /> Total Blocked</div>
+          <div className="metric-value" style={{ color: T.danger }}>{countTotal ?? '—'}</div>
+          <div className="metric-subtext">ips flagged</div>
         </div>
-
-        <div className="metric-card">
+        <div className="metric-card detections">
           <div className="metric-label">Avg Risk Score</div>
-          <div className="metric-value">
-            {Number(stats.avg_risk_score || 0).toFixed(1)}
-          </div>
+          <div className="metric-value" style={{ color: T.warning }}>{Number(stats.avg_risk_score || 0).toFixed(1)}</div>
+          <div className="metric-subtext">out of 100</div>
         </div>
-
-        <div className="metric-card">
+        <div className="metric-card confidence">
           <div className="metric-label">Last Blocked</div>
-          <div className="metric-value" style={{ fontSize: '14px' }}>
-            {stats.last_blocked_at
-              ? new Date(stats.last_blocked_at).toLocaleString()
-              : 'N/A'}
+          <div className="metric-value" style={{ color: '#4A7FD4', fontSize: '16px' }}>
+            {stats.last_blocked_at ? new Date(stats.last_blocked_at).toLocaleTimeString() : '—'}
           </div>
+          <div className="metric-subtext">{stats.last_blocked_at ? new Date(stats.last_blocked_at).toLocaleDateString() : 'no events'}</div>
         </div>
       </div>
 
       <div className="table-container">
         <div className="table-header">
-          <h3 className="chart-title">Blocked IP Log</h3>
-          <div style={{ fontSize: '12px', color: '#ea4335', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ width: '8px', height: '8px', background: '#ea4335', borderRadius: '50%', display: 'inline-block' }}></span>
-            Auto-refresh every 5s
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Lock size={12} style={{ color: T.danger }} />
+            <span className="chart-title" style={{ margin: 0 }}>Blocked IP log</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.muted }}>
+            <span style={{ width: '5px', height: '5px', background: T.accent, display: 'inline-block', borderRadius: '50%' }} />
+            auto-refresh 5s
           </div>
         </div>
 
@@ -125,7 +119,7 @@ function BlockedIPs() {
           <table className="table">
             <thead>
               <tr>
-                <th style={{ width: '30px' }}></th>
+                <th style={{ width: '24px' }}></th>
                 <th>IP Address</th>
                 <th>Blocked At</th>
                 <th>Reason</th>
@@ -133,44 +127,36 @@ function BlockedIPs() {
               </tr>
             </thead>
             <tbody>
-              {blockedIPs.map((item, index) => {
+              {blockedIPs.map((item, i) => {
                 const riskScore = Number(item?.risk_score || 0)
+                const rc = REASON_COLORS[item.reason] || '#4A7FD4'
+                const sc = sevColor(riskScore)
                 return (
-                  <tr
-                    key={index}
-                    style={{
-                      background: riskScore > 70 ? 'rgba(234, 67, 53, 0.05)' : 'transparent'
-                    }}
-                  >
-                    <td style={{ color: '#ea4335' }}>🚫</td>
-                    <td style={{ fontFamily: 'monospace', fontSize: '13px', color: 'var(--accent-blue)' }}>
-                      {item.ip_address || item.ip || 'Unknown'}
+                  <tr key={i} style={{ background: riskScore > 70 ? 'rgba(255,59,92,0.04)' : 'transparent' }}>
+                    <td>
+                      <div style={{ width: '5px', height: '5px', background: T.danger, borderRadius: '50%' }} />
                     </td>
-                    <td style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
-                      {item.blocked_at ? new Date(item.blocked_at).toLocaleString() : 'N/A'}
+                    <td style={{ color: T.accent, fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px' }}>
+                      {item.ip_address || item.ip || 'unknown'}
+                    </td>
+                    <td style={{ color: T.muted, fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px' }}>
+                      {item.blocked_at ? new Date(item.blocked_at).toLocaleString() : '—'}
                     </td>
                     <td>
                       <span style={{
-                        background: getLabelColor(item.reason) + '20',
-                        color: getLabelColor(item.reason),
-                        padding: '3px 8px',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        fontWeight: 500,
+                        background: rc + '18', color: rc, border: `1px solid ${rc}30`,
+                        padding: '2px 8px', borderRadius: '2px',
+                        fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 600,
+                        textTransform: 'uppercase', letterSpacing: '0.04em',
                       }}>
-                        {item.reason || 'Unknown'}
+                        {item.reason?.replace('_', ' ') || 'unknown'}
                       </span>
                     </td>
                     <td>
                       <div className="risk-bar">
-                        <span style={{ minWidth: '40px', fontSize: '13px' }}>
-                          {riskScore.toFixed(1)}
-                        </span>
+                        <span style={{ minWidth: '36px', color: sc }}>{riskScore.toFixed(1)}</span>
                         <div className="risk-bar-container">
-                          <div
-                            className={`risk-bar-fill ${getRiskColor(riskScore)}`}
-                            style={{ width: `${Math.min(riskScore, 100)}%` }}
-                          />
+                          <div className="risk-bar-fill" style={{ width: `${Math.min(riskScore, 100)}%`, background: sc }} />
                         </div>
                       </div>
                     </td>
@@ -180,9 +166,9 @@ function BlockedIPs() {
             </tbody>
           </table>
         ) : (
-          <p style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-            {error ? 'Unable to load blocked IPs' : 'No blocked IPs'}
-          </p>
+          <div style={{ padding: '40px 20px', textAlign: 'center', fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', color: T.muted }}>
+            {error ? 'unable to load blocked IPs' : 'no blocked IPs'}
+          </div>
         )}
       </div>
     </div>

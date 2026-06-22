@@ -1,1 +1,242 @@
-{}
+{
+  "146.159.132.119": {
+    "blocked_at": "2026-06-22T15:19:17.730238+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "185.149.148.57": {
+    "blocked_at": "2026-06-22T15:20:05.603450+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "89.21.31.234": {
+    "blocked_at": "2026-06-22T15:20:14.101745+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "222.135.188.235": {
+    "blocked_at": "2026-06-22T15:20:45.240173+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "198.159.91.68": {
+    "blocked_at": "2026-06-22T15:20:55.886631+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "146.132.57.252": {
+    "blocked_at": "2026-06-22T15:21:24.578043+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "198.93.174.179": {
+    "blocked_at": "2026-06-22T15:21:44.009428+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "89.46.158.38": {
+    "blocked_at": "2026-06-22T15:21:52.676569+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "198.79.65.198": {
+    "blocked_at": "2026-06-22T15:22:02.581810+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "146.48.216.44": {
+    "blocked_at": "2026-06-22T15:22:13.851109+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "185.84.131.182": {
+    "blocked_at": "2026-06-22T15:22:23.534655+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "45.10.115.34": {
+    "blocked_at": "2026-06-22T15:22:51.001945+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "45.141.169.79": {
+    "blocked_at": "2026-06-22T15:23:01.146750+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "89.47.189.213": {
+    "blocked_at": "2026-06-22T15:23:11.869592+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "194.165.234.74": {
+    "blocked_at": "2026-06-22T15:24:00.663555+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "80.160.63.74": {
+    "blocked_at": "2026-06-22T15:24:12.049553+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "91.253.239.136": {
+    "blocked_at": "2026-06-22T15:24:32.006656+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "146.147.92.182": {
+    "blocked_at": "2026-06-22T15:25:04.079936+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "103.155.201.48": {
+    "blocked_at": "2026-06-22T15:26:01.407528+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "103.97.149.145": {
+    "blocked_at": "2026-06-22T15:26:29.401804+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "45.137.169.90": {
+    "blocked_at": "2026-06-22T15:27:18.912176+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "146.172.191.23": {
+    "blocked_at": "2026-06-22T15:27:49.519229+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "80.186.147.68": {
+    "blocked_at": "2026-06-22T15:28:07.487268+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "185.125.11.85": {
+    "blocked_at": "2026-06-22T15:29:14.782395+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "89.242.56.183": {
+    "blocked_at": "2026-06-22T15:29:24.211035+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "146.77.144.11": {
+    "blocked_at": "2026-06-22T15:29:32.578311+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "185.64.184.4": {
+    "blocked_at": "2026-06-22T15:29:53.237117+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "185.6.154.247": {
+    "blocked_at": "2026-06-22T15:30:36.598128+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "80.120.204.228": {
+    "blocked_at": "2026-06-22T15:30:45.226957+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "146.110.208.108": {
+    "blocked_at": "2026-06-22T15:30:57.016471+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "80.14.73.187": {
+    "blocked_at": "2026-06-22T15:32:08.714441+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "194.70.238.186": {
+    "blocked_at": "2026-06-22T15:32:20.346068+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "198.187.106.48": {
+    "blocked_at": "2026-06-22T15:32:30.362867+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "194.225.241.138": {
+    "blocked_at": "2026-06-22T15:32:39.923823+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "146.93.76.223": {
+    "blocked_at": "2026-06-22T15:33:25.456815+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "222.45.38.202": {
+    "blocked_at": "2026-06-22T15:34:42.437982+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "91.205.151.131": {
+    "blocked_at": "2026-06-22T15:34:54.475260+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "45.217.52.143": {
+    "blocked_at": "2026-06-22T15:35:16.492306+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "89.211.163.173": {
+    "blocked_at": "2026-06-22T15:36:09.406543+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "222.80.101.79": {
+    "blocked_at": "2026-06-22T15:36:18.303871+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "222.110.207.18": {
+    "blocked_at": "2026-06-22T15:37:21.227907+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "185.229.139.240": {
+    "blocked_at": "2026-06-22T15:37:30.477169+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "89.142.58.126": {
+    "blocked_at": "2026-06-22T15:37:41.481598+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "80.177.88.201": {
+    "blocked_at": "2026-06-22T15:37:52.531271+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "222.12.139.193": {
+    "blocked_at": "2026-06-22T15:38:21.221425+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "80.171.16.93": {
+    "blocked_at": "2026-06-22T15:40:37.792554+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "185.201.108.27": {
+    "blocked_at": "2026-06-22T15:40:47.652581+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  },
+  "45.148.69.203": {
+    "blocked_at": "2026-06-22T15:40:56.822526+00:00",
+    "reason": "burst_attack",
+    "duration_sec": 1800
+  }
+}

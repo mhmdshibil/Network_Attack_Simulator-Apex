@@ -22,7 +22,7 @@ function Sidebar({ activeSection, setActiveSection }) {
       navItemsRef.current.forEach((ref) => {
         if (!ref) return
         const rect = ref.getBoundingClientRect()
-        const influence = getInfluence(rect, 150, 2)
+        const influence = getInfluence(rect, 120, 1.5)
         ref.style.transform = `translate(${influence.x}px, ${influence.y}px)`
       })
       frameId = requestAnimationFrame(applyPhysics)
@@ -35,20 +35,18 @@ function Sidebar({ activeSection, setActiveSection }) {
     <nav className="navbar">
       <div className="navbar-container">
 
-        {/* ── Brand ── */}
+        {/* Brand */}
         <div className="navbar-brand">
-          <svg width="30" height="30" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <polygon points="16,2 30,28 2,28" fill="none" stroke="#4285f4" strokeWidth="2"/>
-            <polygon points="16,9 25,26 7,26" fill="#4285f4" opacity="0.18"/>
-            <line x1="16" y1="2" x2="16" y2="28" stroke="#4285f4" strokeWidth="1.2" opacity="0.5"/>
-            <circle cx="16" cy="16" r="2.8" fill="#4285f4"/>
+          <svg width="20" height="20" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="16,3 29,27 3,27" fill="none" stroke="#2DD9FF" strokeWidth="1.5"/>
+            <polygon points="16,10 24,25 8,25" fill="#2DD9FF" opacity="0.12"/>
+            <line x1="16" y1="3" x2="16" y2="27" stroke="#2DD9FF" strokeWidth="1" opacity="0.4"/>
+            <circle cx="16" cy="16" r="2.2" fill="#2DD9FF"/>
           </svg>
-          <span className="navbar-title" style={{ letterSpacing: '0.03em' }}>
-            Apex<span style={{ color: '#4285f4', fontWeight: 700 }}>-Kinetics</span>
-          </span>
+          <span className="navbar-title">Apex<span style={{ color: '#2DD9FF' }}>·K</span></span>
         </div>
 
-        {/* ── Nav items ── */}
+        {/* Nav items */}
         <div className="navbar-menu">
           {menuItems.map((item, idx) => {
             const Icon = item.icon
@@ -59,34 +57,30 @@ function Sidebar({ activeSection, setActiveSection }) {
                 onClick={() => setActiveSection(item.id)}
                 ref={(el) => { navItemsRef.current[idx] = el }}
                 className={`nav-button ${isActive ? 'active' : ''}`}
-                style={{
-                  transition: 'all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                  willChange: 'transform',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                }}
+                style={{ willChange: 'transform' }}
               >
-                <Icon size={18} className="nav-icon" />
+                <Icon size={14} className="nav-icon" />
                 <span className="nav-label">{item.label}</span>
               </button>
             )
           })}
         </div>
 
-        <div className="navbar-status">
-          <span className="status-indicator"></span>
-          Active
+        {/* Footer: status + theme toggle */}
+        <div className="sidebar-footer">
+          <div className="navbar-status">
+            <span className="status-indicator" />
+            LIVE
+          </div>
+          <button
+            className="navbar-theme-toggle"
+            onClick={toggle}
+            aria-label="Toggle dark mode"
+            title={isDark ? 'Light mode' : 'Dark mode'}
+          >
+            {isDark ? <Sun size={12} /> : <Moon size={12} />}
+          </button>
         </div>
-
-        <button
-          className="navbar-theme-toggle"
-          onClick={toggle}
-          aria-label="Toggle dark mode"
-          title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-        >
-          {isDark ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
 
       </div>
     </nav>

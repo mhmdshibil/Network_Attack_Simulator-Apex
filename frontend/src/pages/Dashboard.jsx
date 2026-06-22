@@ -1,60 +1,62 @@
 import React, { useRef, useEffect, useState } from 'react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import {
-  AlertCircle, Shield, AlertTriangle, Info, Cpu, Eye, Globe,
-  Lock, Activity, Terminal, CheckCircle,
-  Database, Network, AlertOctagon, BookOpen, Settings
-} from 'lucide-react'
+import { AlertCircle, Shield, AlertTriangle, Activity, Eye, Globe } from 'lucide-react'
 import { useCursorPhysics } from '../hooks/useCursorPhysics'
-import { fetchHealth, fetchMetrics, fetchTimeline } from '../api/api'
+import { useCountUp } from '../hooks/useCountUp'
+import { fetchHealth, fetchMetrics, fetchTimeline, fetchAlerts } from '../api/api'
 
-const CyberTooltip = ({ active, payload, label }) => {
+const T = {
+  bg:      '#131316',
+  border:  '#232328',
+  text:    '#F2F3F5',
+  muted:   '#6E7180',
+  accent:  '#2DD9FF',
+  danger:  '#FF3B5C',
+  warning: '#FFA63D',
+}
+
+/* ── Shared tooltip ──────────────────────────────────────────── */
+const SOCTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
     <div style={{
-      background: 'rgba(0,0,0,0.92)', border: '1px solid #4285f4',
-      borderRadius: '6px', padding: '10px 14px', fontSize: '12px',
-      color: '#e8eaed', boxShadow: '0 0 20px rgba(66,133,244,0.35)',
+      background: T.bg, border: `1px solid ${T.border}`,
+      borderRadius: '2px', padding: '10px 14px',
+      fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px', color: T.text,
     }}>
-      <div style={{ color: '#4285f4', marginBottom: '6px', fontFamily: 'monospace', letterSpacing: '0.05em' }}>{label}</div>
+      <div style={{ color: T.muted, marginBottom: '6px', letterSpacing: '0.05em' }}>{label}</div>
       {payload.map((p, i) => (
-        <div key={i} style={{ color: p.color, marginTop: '3px', display: 'flex', justifyContent: 'space-between', gap: '16px' }}>
-          <span style={{ opacity: 0.7 }}>{p.name}</span><strong>{p.value}</strong>
+        <div key={i} style={{ color: p.color, display: 'flex', justifyContent: 'space-between', gap: '20px', marginTop: '3px' }}>
+          <span style={{ opacity: 0.6 }}>{p.name}</span>
+          <strong>{p.value}</strong>
         </div>
       ))}
     </div>
   )
 }
 
-const SectionHeading = ({ icon: Icon, color, label, tag }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-    <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: `${color}18`, border: `1px solid ${color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Icon size={16} style={{ color }} />
-    </div>
-    <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: 0, letterSpacing: '0.03em' }}>{label}</h3>
-    {tag && (
-      <span style={{ marginLeft: 'auto', fontSize: '10px', color, fontFamily: 'monospace', letterSpacing: '0.1em', background: `${color}12`, padding: '3px 8px', borderRadius: '4px', border: `1px solid ${color}25` }}>{tag}</span>
-    )}
+/* ── Label + value stat block ────────────────────────────────── */
+const StatBlock = ({ label, value, accent = T.muted }) => (
+  <div style={{ flex: '1 1 100px', padding: '16px 18px', borderRight: `1px solid ${T.border}` }}>
+    <div style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: '10px', fontWeight: 600, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '6px' }}>{label}</div>
+    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '22px', fontWeight: 600, color: accent, letterSpacing: '-0.01em' }}>{value}</div>
   </div>
 )
 
-const FeatureCard = ({ icon: Icon, color, title, desc }) => (
-  <div style={{ padding: '18px', background: 'rgba(255,255,255,0.025)', borderRadius: '10px', border: `1px solid ${color}22`, position: 'relative', overflow: 'hidden' }}>
-    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '2px', background: `linear-gradient(90deg, transparent, ${color}80, transparent)` }} />
-    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-      <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: `${color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Icon size={14} style={{ color }} />
-      </div>
-      <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>{title}</span>
-    </div>
-    <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.65', margin: 0 }}>{desc}</p>
+/* ── Pipeline step ───────────────────────────────────────────── */
+const PipeStep = ({ n, title, desc, accent }) => (
+  <div style={{ flex: '1 1 140px', padding: '16px', borderRight: `1px solid ${T.border}` }}>
+    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '18px', fontWeight: 600, color: T.border, marginBottom: '4px' }}>{n}</div>
+    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px', fontWeight: 600, color: accent, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{title}</div>
+    <p style={{ fontSize: '11px', color: T.muted, lineHeight: '1.6', margin: 0, maxWidth: 'none' }}>{desc}</p>
   </div>
 )
 
-const ReqRow = ({ label, value, color = '#4285f4' }) => (
-  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-    <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{label}</span>
-    <span style={{ fontSize: '12px', fontFamily: 'monospace', color, background: `${color}12`, padding: '3px 10px', borderRadius: '4px', border: `1px solid ${color}25` }}>{value}</span>
+/* ── Spec row ────────────────────────────────────────────────── */
+const SpecRow = ({ label, value }) => (
+  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${T.border}` }}>
+    <span style={{ fontFamily: "'IBM Plex Sans', sans-serif", fontSize: '12px', color: T.muted }}>{label}</span>
+    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px', color: T.text, background: T.border, padding: '2px 8px', borderRadius: '2px' }}>{value}</span>
   </div>
 )
 
@@ -62,12 +64,18 @@ function Dashboard() {
   const [healthData, setHealthData]     = useState(null)
   const [metricsData, setMetricsData]   = useState(null)
   const [timelineData, setTimelineData] = useState([])
+  const [alertsData, setAlertsData]     = useState([])
   const [isOffline, setIsOffline]       = useState(false)
   const cardRefs = useRef([])
   const { getInfluence } = useCursorPhysics()
 
+  /* ── Count-up for numeric stat cards ── */
+  const countDetections = useCountUp(typeof metricsData?.total_detections === 'number' ? metricsData.total_detections : null)
+  const countRiskyIPs   = useCountUp(typeof metricsData?.unique_blocked_ips === 'number' ? metricsData.unique_blocked_ips : null)
+  const countMonitor    = useCountUp(typeof metricsData?.monitor_actions === 'number' ? metricsData.monitor_actions : null)
+
   useEffect(() => {
-    const loadData = async () => {
+    const load = async () => {
       try {
         const [health, metrics, timeline] = await Promise.all([fetchHealth(), fetchMetrics(), fetchTimeline('24h')])
         if (!health || !metrics || !timeline) { setIsOffline(true); return }
@@ -75,14 +83,27 @@ function Dashboard() {
         setMetricsData(metrics)
         setTimelineData((timeline.timeline || []).map(item => ({
           timestamp: new Date(item.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          packets: item.packets, events: item.events,
+          packets: item.packets,
+          events: item.events,
         })))
         setIsOffline(false)
       } catch { setIsOffline(true) }
     }
-    loadData()
-    const interval = setInterval(loadData, 5000)
-    return () => clearInterval(interval)
+    load()
+    const iv = setInterval(load, 5000)
+    return () => clearInterval(iv)
+  }, [])
+
+  useEffect(() => {
+    const loadAlerts = async () => {
+      try {
+        const data = await fetchAlerts(20)
+        if (Array.isArray(data)) setAlertsData(data)
+      } catch { /* pass */ }
+    }
+    loadAlerts()
+    const iv = setInterval(loadAlerts, 5000)
+    return () => clearInterval(iv)
   }, [])
 
   useEffect(() => {
@@ -91,7 +112,7 @@ function Dashboard() {
       cardRefs.current.forEach(ref => {
         if (!ref) return
         const rect = ref.getBoundingClientRect()
-        const influence = getInfluence(rect, 200, 8)
+        const influence = getInfluence(rect, 200, 6)
         ref.style.transform = `translate(${influence.x}px, ${influence.y}px)`
       })
       frameId = requestAnimationFrame(applyPhysics)
@@ -101,194 +122,192 @@ function Dashboard() {
   }, [getInfluence])
 
   const cards = [
-    { label: 'System Health',    value: healthData?.status === 'ok' ? 'Healthy' : healthData?.status || 'Unknown', subtext: healthData ? `Status: ${healthData.status}` : 'Loading...', icon: Shield,       iconColor: '#34a853', glowColor: 'rgba(52,168,83,0.15)',    className: 'health' },
-    { label: 'Total Detections', value: metricsData?.total_detections ?? 0,       subtext: 'All time',             icon: AlertTriangle, iconColor: '#fbbc04', glowColor: 'rgba(251,188,4,0.12)',    className: 'detections' },
-    { label: 'Active Risky IPs', value: metricsData?.unique_blocked_ips ?? 0,     subtext: 'Currently monitored',  icon: Globe,         iconColor: '#ea4335', glowColor: 'rgba(234,67,53,0.12)',    className: 'risky' },
-    { label: 'Monitor Actions',  value: metricsData?.monitor_actions ?? 'N/A',    subtext: metricsData?.last_detection ? `Last ${new Date(metricsData.last_detection).toLocaleTimeString()}` : 'No detections', icon: Eye, iconColor: '#4285f4', glowColor: 'rgba(66,133,244,0.12)', className: 'confidence' },
+    { label: 'System Health',    value: healthData?.status === 'ok' ? 'OK' : healthData?.status ?? '—', subtext: 'API connection', icon: Shield,        accent: T.accent,  cls: 'health' },
+    { label: 'Total Detections', value: countDetections ?? '—',                                          subtext: 'all time',       icon: AlertTriangle, accent: T.warning, cls: 'detections' },
+    { label: 'Active Risky IPs', value: countRiskyIPs   ?? '—',                                          subtext: 'monitored',      icon: Globe,         accent: T.danger,  cls: 'risky' },
+    { label: 'Monitor Actions',  value: countMonitor     ?? '—',                                          subtext: metricsData?.last_detection ? new Date(metricsData.last_detection).toLocaleTimeString() : 'no events', icon: Eye, accent: '#4A7FD4', cls: 'confidence' },
   ]
 
   return (
     <div>
-      {isOffline && <div className="demo-banner"><AlertCircle size={16} /> Backend offline — Check API connection</div>}
+      {isOffline && (
+        <div className="demo-banner">
+          <AlertCircle size={13} /> Backend offline — check API connection
+        </div>
+      )}
 
-      {/* ── Metric Cards ── */}
-      <div className="metrics-grid">
+      {/* ── Metric cards ── */}
+      <div className="metrics-grid" style={{ marginBottom: '20px' }}>
         {cards.map((card, i) => {
           const Icon = card.icon
           return (
-            <div key={i} ref={el => cardRefs.current[i] = el} className={`metric-card ${card.className}`}
-              style={{ boxShadow: `0 0 24px ${card.glowColor}`, position: 'relative', overflow: 'hidden' }}>
-              <span style={{ position: 'absolute', top: 0, right: 0, width: 0, height: 0, borderStyle: 'solid', borderWidth: '0 28px 28px 0', borderColor: `transparent ${card.iconColor}30 transparent transparent` }} />
-              <div className="metric-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Icon size={14} style={{ color: card.iconColor }} />{card.label}
+            <div key={i} ref={el => cardRefs.current[i] = el} className={`metric-card ${card.cls}`} style={{ willChange: 'transform' }}>
+              <div className="metric-label">
+                <Icon size={11} style={{ color: card.accent }} />
+                {card.label}
               </div>
-              <div className="metric-value">{card.value}</div>
+              <div className="metric-value" style={{ color: card.accent }}>{card.value}</div>
               <div className="metric-subtext">{card.subtext}</div>
-              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '2px', background: `linear-gradient(90deg, transparent, ${card.iconColor}, transparent)`, opacity: 0.6 }} />
             </div>
           )
         })}
       </div>
 
-      {/* ── Traffic Timeline ── */}
+      {/* ── Traffic timeline — monotone curve + ambient breathing fill ── */}
       {timelineData.length > 0 && (
-        <div className="chart-container" style={{ background: 'linear-gradient(135deg, rgba(66,133,244,0.04) 0%, rgba(0,0,0,0) 60%)', border: '1px solid rgba(66,133,244,0.2)', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(66,133,244,0.03) 3px, rgba(66,133,244,0.03) 4px)' }} />
+        <div className="chart-container" style={{ marginBottom: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-            <Activity size={16} style={{ color: '#4285f4' }} />
-            <h3 className="chart-title" style={{ margin: 0 }}>Traffic Timeline</h3>
-            <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#4285f4', fontFamily: 'monospace', letterSpacing: '0.05em' }}>LIVE · 24H</span>
+            <Activity size={12} style={{ color: T.muted }} />
+            <span className="chart-title" style={{ margin: 0 }}>Traffic Timeline</span>
+            <span style={{ marginLeft: 'auto', fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.accent, letterSpacing: '0.06em' }}>LIVE · 24H</span>
           </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={timelineData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={timelineData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
               <defs>
-                <linearGradient id="packetsGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#4285f4" stopOpacity={0.4}/><stop offset="95%" stopColor="#4285f4" stopOpacity={0}/>
+                <linearGradient id="gPkts" x1="0" y1="0" x2="0" y2="1">
+                  {/* breathe-stop drives the slow ambient opacity animation via CSS */}
+                  <stop offset="5%"  stopColor={T.accent} className="breathe-stop" />
+                  <stop offset="95%" stopColor={T.accent} stopOpacity={0}/>
                 </linearGradient>
-                <linearGradient id="eventsGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#ea4335" stopOpacity={0.35}/><stop offset="95%" stopColor="#ea4335" stopOpacity={0}/>
+                <linearGradient id="gEvts" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor={T.danger} stopOpacity={0.14}/>
+                  <stop offset="95%" stopColor={T.danger} stopOpacity={0}/>
                 </linearGradient>
               </defs>
-              <XAxis dataKey="timestamp" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.35)', fontFamily: 'monospace' }} axisLine={{ stroke: 'rgba(66,133,244,0.2)' }} tickLine={false} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.35)', fontFamily: 'monospace' }} axisLine={false} tickLine={false} width={36} />
-              <Tooltip content={<CyberTooltip />} />
-              <Area type="monotone" dataKey="packets" stroke="#4285f4" strokeWidth={2} fill="url(#packetsGrad)" dot={false} name="Packets" />
-              <Area type="monotone" dataKey="events"  stroke="#ea4335" strokeWidth={1.5} fill="url(#eventsGrad)" dot={false} name="Events" />
+              <XAxis dataKey="timestamp" tick={{ fontSize: 10, fill: T.muted, fontFamily: "'IBM Plex Mono'" }} axisLine={{ stroke: T.border }} tickLine={false} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 10, fill: T.muted, fontFamily: "'IBM Plex Mono'" }} axisLine={false} tickLine={false} width={32} />
+              <Tooltip content={<SOCTooltip />} />
+              <Area type="monotone" dataKey="packets" stroke={T.accent} strokeWidth={1.5} fill="url(#gPkts)" dot={false} name="Packets" />
+              <Area type="monotone" dataKey="events"  stroke={T.danger} strokeWidth={1}   fill="url(#gEvts)" dot={false} name="Events" />
             </AreaChart>
           </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* ════ ABOUT ════ */}
-      <div style={{ marginTop: '28px', padding: '32px', borderRadius: '14px', background: 'linear-gradient(135deg, rgba(66,133,244,0.07) 0%, rgba(234,67,53,0.03) 100%)', border: '1px solid rgba(66,133,244,0.18)', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: 0, left: 0, width: '3px', height: '100%', background: 'linear-gradient(180deg, #4285f4, #ea4335)' }} />
-
-        <SectionHeading icon={Info} color="#4285f4" label="About Apex-Kinetics" tag="v1.0 · LIVE" />
-
-        {/* Hero */}
-        <p style={{ fontSize: '15px', color: 'var(--text-primary)', lineHeight: '1.85', marginBottom: '10px', fontWeight: 500 }}>
-          <span style={{ color: '#4285f4', fontWeight: 800 }}>Apex-Kinetics</span> is an autonomous, real-time network
-          threat intelligence and response platform — engineered to outpace adversaries at the speed of computation.
-        </p>
-        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.85', marginBottom: '28px' }}>
-          Built to detect, classify, and neutralise malicious network activity across 5 attack vectors —
-          DDoS floods, brute-force intrusions, SQL injection probes, port-scan sweeps, and malware beaconing —
-          the system operates continuously with{' '}
-          <span style={{ color: '#34a853', fontWeight: 600 }}>zero human intervention</span> required.
-          Every packet is a data point. Every anomaly triggers a decision. Every decision is logged.
-        </p>
-
-        {/* Feature cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px', marginBottom: '28px' }}>
-          <FeatureCard icon={Cpu}      color="#4285f4" title="Detection Engine"       desc="ML-powered multi-vector classification pipeline. Processes live packet streams and flags anomalies with sub-second latency." />
-          <FeatureCard icon={Shield}   color="#34a853" title="Autonomous Response"    desc="Instant BLOCK / RATE-LIMIT / MONITOR decisions enforced without human approval. Rules adapt based on cumulative threat score." />
-          <FeatureCard icon={Activity} color="#fbbc04" title="Live Traffic Analysis"  desc="Continuous 24/7 packet and security event stream monitoring. Timeline replay across configurable windows: 5m → 30d." />
-          <FeatureCard icon={Lock}     color="#ea4335" title="IP Threat Scoring"      desc="Per-IP risk scores (0–100) with confidence metrics, severity classification, and full first/last-seen audit trail." />
-          <FeatureCard icon={Database} color="#9c27b0" title="Audit & Forensics"      desc="Every detection and response action is written to an immutable audit log — full forensic trail for compliance and review." />
-          <FeatureCard icon={Network}  color="#00bcd4" title="Correlation Engine"     desc="Cross-IP attack pattern correlation detects coordinated campaigns, not just isolated events, for a holistic threat picture." />
-        </div>
-
-        {/* Why */}
-        <div style={{ padding: '20px 22px', background: 'rgba(66,133,244,0.06)', borderRadius: '10px', border: '1px solid rgba(66,133,244,0.15)', marginBottom: '28px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-            <AlertOctagon size={15} style={{ color: '#fbbc04' }} />
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#fbbc04', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Why Apex-Kinetics?</span>
-          </div>
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.85', margin: 0 }}>
-            Traditional firewalls and IDS tools react to <em>known</em> signatures — they're blind to zero-day tactics
-            and slow to respond to volume attacks. Apex-Kinetics takes a different approach: it correlates multi-vector
-            attack patterns in real time, adapts response thresholds dynamically as threat scores accumulate, and maintains
-            a living threat map of your network. Whether you're hardening a university lab, a startup backend, or a
-            production microservices cluster, Apex-Kinetics delivers{' '}
-            <span style={{ color: '#4285f4', fontWeight: 600 }}>full-spectrum situational awareness</span> and automated
-            countermeasures at machine speed — not human speed.
-          </p>
-        </div>
-
-        {/* Use cases */}
-        <div style={{ marginBottom: '28px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-            <BookOpen size={14} style={{ color: '#34a853' }} />
-            <span style={{ fontSize: '11px', fontWeight: 700, color: '#34a853', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Use Cases</span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
-            {[
-              { label: 'University / Lab Networks',    color: '#4285f4' },
-              { label: 'Startup API Protection',       color: '#34a853' },
-              { label: 'Red Team Simulation',          color: '#ea4335' },
-              { label: 'SOC Training Environments',    color: '#fbbc04' },
-              { label: 'Cloud Infrastructure Defence', color: '#9c27b0' },
-              { label: 'IoT Network Monitoring',       color: '#00bcd4' },
-            ].map((uc, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', background: `${uc.color}0d`, borderRadius: '8px', border: `1px solid ${uc.color}22` }}>
-                <CheckCircle size={13} style={{ color: uc.color, flexShrink: 0 }} />
-                <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{uc.label}</span>
+          <div style={{ display: 'flex', gap: '20px', marginTop: '12px', paddingTop: '12px', borderTop: `1px solid ${T.border}` }}>
+            {[{ c: T.accent, l: 'Packets' }, { c: T.danger, l: 'Events' }].map((x, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontFamily: "'IBM Plex Mono'", fontSize: '10px', color: T.muted, letterSpacing: '0.05em' }}>
+                <div style={{ width: '18px', height: '2px', background: x.c }} />
+                {x.l}
               </div>
             ))}
           </div>
         </div>
+      )}
 
-        {/* Stats */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', background: 'rgba(0,0,0,0.2)', borderRadius: '10px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)', marginBottom: '28px' }}>
+      {/* ── Live Alerts — slide+fade from top, left-border severity flash ── */}
+      <div className="chart-container" style={{ padding: 0, marginBottom: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', borderBottom: `1px solid ${T.border}` }}>
+          <AlertTriangle size={12} style={{ color: T.danger }} />
+          <span className="chart-title" style={{ margin: 0 }}>Live Alerts</span>
+          <span style={{ marginLeft: 'auto', fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.danger, letterSpacing: '0.06em' }}>LAST 20</span>
+        </div>
+        {alertsData.length === 0 ? (
+          <div style={{ padding: '28px 20px', textAlign: 'center', fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: T.muted }}>
+            awaiting detections...
+          </div>
+        ) : (
+          <div style={{ maxHeight: '280px', overflowY: 'auto' }}>
+            {alertsData.map(alert => (
+              <div
+                key={`${alert.ip}-${alert.timestamp}`}
+                className={`alert-row alert-row-${alert.severity}`}
+              >
+                <span style={{
+                  width: '5px', height: '5px', borderRadius: '50%', flexShrink: 0,
+                  background: alert.severity === 'high' ? T.danger : T.warning,
+                }} />
+                <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: T.text, flex: 1 }}>
+                  {alert.message}
+                </span>
+                <span style={{
+                  fontFamily: "'IBM Plex Mono',monospace", fontSize: '9px', letterSpacing: '0.06em',
+                  color:      alert.severity === 'high' ? T.danger  : T.warning,
+                  background: alert.severity === 'high' ? 'rgba(255,59,92,0.1)' : 'rgba(255,166,61,0.1)',
+                  border:     `1px solid ${alert.severity === 'high' ? 'rgba(255,59,92,0.25)' : 'rgba(255,166,61,0.25)'}`,
+                  padding: '2px 6px', borderRadius: '2px', flexShrink: 0,
+                }}>
+                  {alert.action}
+                </span>
+                <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.muted, flexShrink: 0, minWidth: '54px', textAlign: 'right' }}>
+                  {alert.timestamp ? new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── System Overview ── */}
+      <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: '2px', marginTop: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
+
+        <div style={{ padding: '12px 20px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: '10px', fontWeight: 600, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>System Overview</span>
+          <span style={{ marginLeft: 'auto', fontFamily: "'IBM Plex Mono',monospace", fontSize: '9px', color: T.accent, border: `1px solid rgba(45,217,255,0.2)`, padding: '1px 6px', borderRadius: '2px' }}>v1.0 · LIVE</span>
+        </div>
+
+        <div style={{ padding: '18px 20px', borderBottom: `1px solid ${T.border}` }}>
+          <p style={{ fontSize: '12px', color: T.text, lineHeight: '1.7', marginBottom: '6px', maxWidth: 'none', fontWeight: 500 }}>
+            <span style={{ color: T.accent, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 600 }}>Apex-Kinetics</span> — autonomous real-time network threat intelligence and response platform.
+          </p>
+          <p style={{ fontSize: '12px', color: T.muted, lineHeight: '1.7', margin: 0, maxWidth: 'none' }}>
+            Detects, classifies, and neutralises malicious network activity across 5 attack vectors with zero human intervention required. Every packet is a data point. Every anomaly triggers a logged decision.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', borderBottom: `1px solid ${T.border}` }}>
           {[
-            { label: 'Attack Vectors',  value: '5+',      color: '#4285f4' },
-            { label: 'Response Time',   value: '<1s',     color: '#34a853' },
-            { label: 'Uptime Target',   value: '99.9%',   color: '#fbbc04' },
-            { label: 'Data Retention',  value: '30 days', color: '#ea4335' },
-            { label: 'Decision Types',  value: '3',       color: '#9c27b0' },
-            { label: 'API Endpoints',   value: '15+',     color: '#00bcd4' },
-          ].map((stat, i, arr) => (
-            <div key={i} style={{ flex: '1 1 120px', padding: '18px 20px', textAlign: 'center', borderRight: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
-              <div style={{ fontSize: '26px', fontWeight: 800, color: stat.color, fontFamily: 'monospace', letterSpacing: '-0.02em' }}>{stat.value}</div>
-              <div style={{ fontSize: '10px', color: 'var(--text-secondary)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: '4px' }}>{stat.label}</div>
+            { label: 'Attack Vectors', value: '5',     accent: T.accent },
+            { label: 'Response Time',  value: '<1s',   accent: T.accent },
+            { label: 'Decision Types', value: '3',     accent: T.warning },
+            { label: 'API Endpoints',  value: '15+',   accent: '#4A7FD4' },
+            { label: 'Data Retention', value: '30d',   accent: T.muted },
+            { label: 'Uptime Target',  value: '99.9%', accent: T.muted },
+          ].map((s, i) => (
+            <StatBlock key={i} label={s.label} value={s.value} accent={s.accent} />
+          ))}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', borderBottom: `1px solid ${T.border}` }}>
+          {[
+            { label: 'Detection Engine',    desc: 'ML-powered multi-vector classification. Processes live packet streams and flags anomalies with sub-second latency.' },
+            { label: 'Autonomous Response', desc: 'BLOCK / RATE-LIMIT / MONITOR enforced instantly, no human approval. Thresholds adapt as cumulative threat score climbs.' },
+            { label: 'IP Threat Scoring',   desc: 'Per-IP risk scores 0–100 with confidence metrics, severity tags, and full first/last-seen audit trail.' },
+            { label: 'Correlation Engine',  desc: 'Cross-IP attack pattern correlation detects coordinated campaigns beyond isolated events.' },
+            { label: 'Audit & Forensics',   desc: 'Every detection and response written to an immutable audit log for compliance and forensic review.' },
+            { label: 'Live Analytics',      desc: '24/7 traffic timeline replay across configurable windows: 5 min → 30 days.' },
+          ].map((c, i) => (
+            <div key={i} style={{ padding: '14px 18px', borderRight: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}` }}>
+              <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 600, color: T.accent, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' }}>{c.label}</div>
+              <p style={{ fontSize: '11px', color: T.muted, lineHeight: '1.65', margin: 0, maxWidth: 'none' }}>{c.desc}</p>
             </div>
           ))}
         </div>
 
-        {/* System Requirements */}
-        <div style={{ marginBottom: '28px' }}>
-          <SectionHeading icon={Settings} color="#fbbc04" label="System Requirements" tag="RECOMMENDED" />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-            <div>
-              <div style={{ fontSize: '11px', color: '#4285f4', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid rgba(66,133,244,0.2)' }}>Backend</div>
-              <ReqRow label="Python"      value="≥ 3.10"    color="#fbbc04" />
-              <ReqRow label="FastAPI"     value="≥ 0.100"   color="#4285f4" />
-              <ReqRow label="Pandas"      value="≥ 2.0"     color="#34a853" />
-              <ReqRow label="Uvicorn"     value="≥ 0.23"    color="#9c27b0" />
-              <ReqRow label="RAM"         value="≥ 512 MB"  color="#fbbc04" />
-              <ReqRow label="Storage"     value="≥ 1 GB"    color="#ea4335" />
-              <ReqRow label="OS"          value="macOS / Linux / Windows" color="#00bcd4" />
-            </div>
-            <div>
-              <div style={{ fontSize: '11px', color: '#ea4335', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid rgba(234,67,53,0.2)' }}>Frontend</div>
-              <ReqRow label="Node.js"     value="≥ 18.x"           color="#34a853" />
-              <ReqRow label="React"       value="≥ 18"             color="#4285f4" />
-              <ReqRow label="Vite"        value="≥ 5"              color="#fbbc04" />
-              <ReqRow label="Recharts"    value="≥ 2.8"            color="#9c27b0" />
-              <ReqRow label="Browser"     value="Chrome / Safari"  color="#00bcd4" />
-              <ReqRow label="Screen"      value="≥ 1280px wide"    color="#ea4335" />
-              <ReqRow label="Network"     value="localhost access"  color="#34a853" />
-            </div>
+        <div style={{ borderBottom: `1px solid ${T.border}` }}>
+          <div style={{ padding: '10px 20px', borderBottom: `1px solid ${T.border}`, fontFamily: "'IBM Plex Sans',sans-serif", fontSize: '10px', fontWeight: 600, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+            Detection Pipeline
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap' }}>
+            <PipeStep n="01" title="Ingest"    desc="Raw network packets captured and written to the detection pipeline in real time."              accent="#4A7FD4" />
+            <PipeStep n="02" title="Classify"  desc="ML engine labels each event: DDoS, brute-force, port-scan, SQL injection, or malware."         accent={T.warning} />
+            <PipeStep n="03" title="Correlate" desc="Events grouped by IP and time window; coordinated campaigns identified and flagged."            accent="#9B59B6" />
+            <PipeStep n="04" title="Score"     desc="Each IP gets a 0–100 risk score with confidence level and HIGH / MEDIUM / LOW severity."        accent={T.danger} />
+            <PipeStep n="05" title="Respond"   desc="Automated BLOCK / RATE-LIMIT / MONITOR executed instantly and written to the audit log."        accent={T.accent} />
           </div>
         </div>
 
-        {/* How it works pipeline */}
-        <div>
-          <SectionHeading icon={Terminal} color="#00bcd4" label="How It Works" tag="PIPELINE" />
-          <div style={{ display: 'flex', alignItems: 'stretch', flexWrap: 'wrap', borderRadius: '10px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)' }}>
-            {[
-              { step: '01', title: 'Ingest',    desc: 'Raw network packets and events are captured and written to the detection pipeline in real time.',   color: '#4285f4' },
-              { step: '02', title: 'Classify',  desc: 'The ML engine labels each event: DDoS, brute-force, port-scan, SQL injection, or malware.',         color: '#fbbc04' },
-              { step: '03', title: 'Correlate', desc: 'Events are grouped by IP and time window. Cross-IP attack campaigns are identified and flagged.',    color: '#9c27b0' },
-              { step: '04', title: 'Score',     desc: 'Each IP receives a 0–100 risk score with confidence level and HIGH / MEDIUM / LOW severity.',        color: '#ea4335' },
-              { step: '05', title: 'Respond',   desc: 'Automated BLOCK / RATE-LIMIT / MONITOR is executed instantly and written to the audit log.',         color: '#34a853' },
-            ].map((s, i) => (
-              <div key={i} style={{ flex: '1 1 150px', padding: '20px 16px', background: `${s.color}07`, borderLeft: `2px solid ${s.color}50`, borderRight: i < 4 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
-                <div style={{ fontSize: '20px', fontWeight: 800, color: `${s.color}35`, fontFamily: 'monospace', marginBottom: '6px' }}>{s.step}</div>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: s.color, marginBottom: '8px' }}>{s.title}</div>
-                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.65', margin: 0 }}>{s.desc}</p>
-              </div>
-            ))}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+          <div style={{ padding: '16px 20px', borderRight: `1px solid ${T.border}` }}>
+            <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 600, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>Backend</div>
+            <SpecRow label="Python"  value="≥ 3.10" />
+            <SpecRow label="FastAPI" value="≥ 0.100" />
+            <SpecRow label="Pandas"  value="≥ 2.0" />
+            <SpecRow label="RAM"     value="≥ 512 MB" />
+          </div>
+          <div style={{ padding: '16px 20px' }}>
+            <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 600, color: T.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>Frontend</div>
+            <SpecRow label="Node.js" value="≥ 18.x" />
+            <SpecRow label="React"   value="≥ 18" />
+            <SpecRow label="Vite"    value="≥ 5" />
+            <SpecRow label="Screen"  value="≥ 1280px" />
           </div>
         </div>
 
