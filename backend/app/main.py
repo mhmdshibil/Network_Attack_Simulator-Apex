@@ -1,8 +1,11 @@
 import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from backend.app.api.routes_attack import router as attack_router
 from backend.app.api.routes_metrics import router as metrics_router
@@ -14,7 +17,11 @@ from backend.app.api.routes_alerts import router as alerts_router
 from backend.app.api.routes_auto_attack import router as auto_attack_router
 from backend.app.api.routes_explain import router as explain_router
 from backend.app.api.routes_ws import router as ws_router
+from backend.app.api.routes_incidents import router as incidents_router
+from backend.app.api.routes_auth import router as auth_router
 from backend.app.services.auto_attack import auto_attack_loop
+
+limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 
 
 @asynccontextmanager
@@ -30,6 +37,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Network Attack Simulator API", lifespan=lifespan)
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -38,6 +48,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router)
 app.include_router(attack_router)
 app.include_router(metrics_router)
 app.include_router(analytics_router)
@@ -48,6 +59,7 @@ app.include_router(alerts_router)
 app.include_router(auto_attack_router)
 app.include_router(explain_router)
 app.include_router(ws_router)
+app.include_router(incidents_router)
 
 
 @app.get("/api/health")

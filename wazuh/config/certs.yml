@@ -1,0 +1,18 @@
+# Certificate configuration for Wazuh single-node deployment
+# Used by the certificate generator (wazuh/wazuh-certs-generator image)
+
+nodes:
+  indexer:
+    - name: wazuh.indexer
+      ip:
+        - 127.0.0.1
+
+  server:
+    - name: wazuh.manager
+      ip:
+        - 127.0.0.1
+
+  dashboard:
+    - name: wazuh.dashboard
+      ip:
+        - 127.0.0.1

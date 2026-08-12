@@ -3,9 +3,17 @@ import Sidebar from './components/Sidebar'
 import ParticleBackground from './components/ParticleBackground'
 import UnifiedDashboard from './pages/UnifiedDashboard'
 import CursorEnergyField from './components/CursorEnergyField'
+import LoginModal from './components/LoginModal'
+import { AuthProvider, useAuth } from './context/AuthContext'
+import { setUnauthorizedHandler } from './api/api'
 
-function App() {
+function AppInner() {
   const [activeSection, setActiveSection] = useState('dashboard')
+  const { onUnauthorized, token, role, authRequired, logout } = useAuth()
+
+  useEffect(() => {
+    setUnauthorizedHandler(onUnauthorized)
+  }, [onUnauthorized])
 
   useEffect(() => {
     const energyField = new CursorEnergyField({
@@ -22,8 +30,15 @@ function App() {
   return (
     <>
       <ParticleBackground />
+      <LoginModal />
       <div className="layout">
-        <Sidebar activeSection={activeSection} setActiveSection={setActiveSection} />
+        <Sidebar
+          activeSection={activeSection}
+          setActiveSection={setActiveSection}
+          role={role}
+          authRequired={authRequired}
+          onLogout={logout}
+        />
         <div className="main-content">
           <main className="content">
             <UnifiedDashboard activeSection={activeSection} setActiveSection={setActiveSection} />
@@ -31,6 +46,14 @@ function App() {
         </div>
       </div>
     </>
+  )
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppInner />
+    </AuthProvider>
   )
 }
 

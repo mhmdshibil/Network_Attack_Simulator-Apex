@@ -5,18 +5,17 @@
 # It also includes a timeline endpoint for visualizing detection frequency over time. These metrics are
 # essential for monitoring the system's health and understanding the overall threat landscape.
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 import pandas as pd
 
 from backend.app.core.paths import DETECTIONS_FILE
+from backend.app.core.auth import require_analyst
 
-# Create a new router for the metrics endpoints, which helps in organizing the API and applies
-# a consistent prefix and tag to all routes within this module.
 router = APIRouter(prefix="/api/metrics", tags=["metrics"])
 
 
 @router.get("/")
-def get_metrics():
+def get_metrics(_: dict = Depends(require_analyst)):
     """
     Retrieves a summary of key system and security metrics.
 
@@ -101,7 +100,7 @@ def get_metrics():
     }
 
 @router.get("/timeline")
-def get_timeline(interval: str = "5s"):
+def get_timeline(interval: str = "5s", _: dict = Depends(require_analyst)):
     """
     Provides a time-series view of detection events over a specified interval.
 

@@ -11,3 +11,9 @@ frontend/.vite/
 dist/
 .env
 *.log
+
+# Wazuh generated certificates (never commit)
+wazuh/config/wazuh_indexer_ssl_certs/
+
+# Security scan reports
+security_scan_reports/semgrep_report.json

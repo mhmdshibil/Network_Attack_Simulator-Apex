@@ -1,6 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pathlib import Path
 import json
+
+from backend.app.core.auth import require_analyst
 
 router = APIRouter(prefix="/api/audit", tags=["audit"])
 
@@ -8,7 +10,7 @@ AUDIT_FILE = Path("data/audit/security_events.jsonl")
 
 
 @router.get("/events")
-def get_events(limit: int = 50):
+def get_events(limit: int = 50, _: dict = Depends(require_analyst)):
     if not AUDIT_FILE.exists():
         return {"events": []}
 
@@ -20,7 +22,7 @@ def get_events(limit: int = 50):
 
 
 @router.get("/ip/{ip}")
-def get_events_by_ip(ip: str, limit: int = 50):
+def get_events_by_ip(ip: str, limit: int = 50, _: dict = Depends(require_analyst)):
     if not AUDIT_FILE.exists():
         return {"events": []}
 

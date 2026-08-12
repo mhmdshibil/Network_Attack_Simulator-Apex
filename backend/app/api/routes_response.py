@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi import status
 
 from backend.app.schemas.respond import RespondRequest
 from backend.app.analytics.correlation import correlate_attacks
 from backend.app.analytics.risk import compute_risk
 from backend.app.response.engine import evaluate_and_respond
+from backend.app.core.auth import require_admin
 
 router = APIRouter(
     prefix="/api/respond",
@@ -13,7 +14,7 @@ router = APIRouter(
 
 
 @router.post("/", status_code=status.HTTP_200_OK)
-def respond(req: RespondRequest):
+def respond(req: RespondRequest, _: dict = Depends(require_admin)):
     """
     Phase 8/9 – Autonomous Response Engine (Hardened)
 

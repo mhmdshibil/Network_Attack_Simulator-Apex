@@ -18,6 +18,7 @@ from backend.app.ml.model_utils import load_model, predict, predict_proba
 from backend.app.ml.anomaly_model import load_anomaly_model, is_anomalous, anomaly_score
 from backend.app.ml.feature_engineering import FEATURE_COLUMNS
 from backend.app.ml.shap_explainer import explain_row, store_explanation
+from backend.app.ml.mitre_mapping import get_mitre
 from backend.app.services.log_service import load_all_logs, aggregate_by_time_window
 from backend.app.services.ws_manager import manager as ws_manager
 from backend.app.response.engine import evaluate_and_respond
@@ -143,6 +144,7 @@ class DetectionEngine:
                 shap_top3 = []
                 print(f"[SHAP] Error: {shap_err}")
 
+            mitre = get_mitre(label)
             detection = {
                 "ip": alert_ip,
                 "timestamp": timestamp,
@@ -153,6 +155,7 @@ class DetectionEngine:
                 "rf_label": ip_group["rf_label"].value_counts().index[0],
                 "if_anomalous": bool(ip_group["if_anomalous"].any()),
                 "shap_top3": shap_top3,
+                "mitre": mitre,
             }
 
             detections.append(detection)

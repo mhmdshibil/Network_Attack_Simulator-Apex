@@ -1,0 +1,24 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# System deps for scikit-learn / scipy build wheels
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY backend/requirements.txt /app/backend/requirements.txt
+RUN pip install --no-cache-dir -r backend/requirements.txt
+
+# Copy source (data/ and models/ are mounted as volumes at runtime)
+COPY backend/ /app/backend/
+COPY backend/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# Directories created at build time; overridden by volume mounts
+RUN mkdir -p /app/data/policies /app/data/audit /app/data/processed \
+             /app/data/training /app/data/raw /app/models
+
+EXPOSE 8000
+
+ENTRYPOINT ["/app/entrypoint.sh"]

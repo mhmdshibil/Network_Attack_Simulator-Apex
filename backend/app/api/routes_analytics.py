@@ -1,11 +1,12 @@
 # backend/app/api/routes_analytics.py
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 import pandas as pd
 from datetime import datetime, timezone
 from backend.app.core.paths import DETECTIONS_FILE
 from backend.app.analytics.correlation import correlate_attacks
 from backend.app.analytics.risk import compute_risk
+from backend.app.core.auth import require_analyst
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
@@ -23,7 +24,7 @@ INTERVAL_MAP = {
 # -----------------------------------------------------------
 
 @router.get("/top_attackers")
-def get_top_attackers(limit: int = Query(5, ge=1, le=100)):
+def get_top_attackers(limit: int = Query(5, ge=1, le=100), _: dict = Depends(require_analyst)):
 
     if not DETECTIONS_FILE.exists():
         return {"limit": limit, "attackers": []}
@@ -72,7 +73,7 @@ def get_top_attackers(limit: int = Query(5, ge=1, le=100)):
 # -----------------------------------------------------------
 
 @router.get("/attack_distribution")
-def attack_distribution():
+def attack_distribution(_: dict = Depends(require_analyst)):
 
     if not DETECTIONS_FILE.exists():
         return {"total": 0, "distribution": {}}
@@ -110,7 +111,8 @@ def attack_distribution():
 @router.get("/attack_trends")
 def attack_trends(
     interval: str = Query("5m"),
-    window: str = Query("1h")
+    window: str = Query("1h"),
+    _: dict = Depends(require_analyst),
 ):
 
     if not DETECTIONS_FILE.exists():
@@ -166,7 +168,7 @@ def attack_trends(
 # -----------------------------------------------------------
 
 @router.get("/risk")
-def get_risk_scores(window: str = "5m"):
+def get_risk_scores(window: str = "5m", _: dict = Depends(require_analyst)):
 
     correlations = correlate_attacks(window=window)
 
@@ -205,7 +207,7 @@ def get_risk_scores(window: str = "5m"):
 # -----------------------------------------------------------
 
 @router.get("/timeline")
-def attack_timeline(interval: str = "5m", window: str = "24h"):
+def attack_timeline(interval: str = "5m", window: str = "24h", _: dict = Depends(require_analyst)):
 
     if not DETECTIONS_FILE.exists():
         return {"timeline": []}

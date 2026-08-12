@@ -1,6 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 import pandas as pd
 from backend.app.core.paths import DETECTIONS_FILE
+from backend.app.ml.mitre_mapping import get_mitre
+from backend.app.core.auth import require_analyst
 
 router = APIRouter(prefix="/api", tags=["alerts"])
 
@@ -31,6 +33,7 @@ def _format_alert(row: dict, idx: int) -> dict:
         severity = "medium"
         action_tag = "MONITOR"
 
+    mitre = get_mitre(label)
     return {
         "id": idx,
         "timestamp": row.get("timestamp", ""),
@@ -38,11 +41,15 @@ def _format_alert(row: dict, idx: int) -> dict:
         "severity": severity,
         "ip": ip,
         "action": action_tag,
+        "label": label,
+        "mitre_id": mitre["technique_id"],
+        "mitre_technique": mitre["technique"],
+        "mitre_tactic": mitre["tactic"],
     }
 
 
 @router.get("/alerts")
-def get_alerts(limit: int = 20):
+def get_alerts(limit: int = 20, _: dict = Depends(require_analyst)):
     if not DETECTIONS_FILE.exists():
         return []
 

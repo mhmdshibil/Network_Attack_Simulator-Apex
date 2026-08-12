@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from datetime import datetime, timezone
 import json
 import csv
@@ -9,6 +9,7 @@ from backend.app.core.paths import (
     DECISION_AUDIT_FILE,
     DETECTIONS_FILE,
 )
+from backend.app.core.auth import require_analyst, require_admin
 
 
 router = APIRouter(
@@ -22,7 +23,7 @@ router = APIRouter(
 # ============================================================
 
 @router.get("/overview")
-def system_overview():
+def system_overview(_: dict = Depends(require_analyst)):
 
     hard_block_file = HARD_BLOCKED_IPS_FILE
     audit_file = DECISION_AUDIT_FILE
@@ -144,7 +145,7 @@ def system_readiness():
 # ============================================================
 
 @router.get("/metrics")
-def system_metrics():
+def system_metrics(_: dict = Depends(require_analyst)):
 
     audit_file = DECISION_AUDIT_FILE
     hard_block_file = HARD_BLOCKED_IPS_FILE
@@ -206,7 +207,7 @@ def system_metrics():
 # ============================================================
 
 @router.get("/blocked_ips")
-def blocked_ips():
+def blocked_ips(_: dict = Depends(require_analyst)):
 
     detections_file = DETECTIONS_FILE
 
@@ -269,7 +270,7 @@ def blocked_ips():
 # ============================================================
 
 @router.post("/reset")
-def system_reset():
+def system_reset(_: dict = Depends(require_admin)):
 
     audit_file = DECISION_AUDIT_FILE
     hard_block_file = HARD_BLOCKED_IPS_FILE

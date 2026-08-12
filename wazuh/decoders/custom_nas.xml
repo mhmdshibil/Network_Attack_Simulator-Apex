@@ -1,0 +1,33 @@
+<!--
+  Custom Wazuh decoder — Network Attack Simulator detection events
+  Source: data/audit/security_events.jsonl
+  Log format: JSON (one object per line)
+
+  Example event:
+  {
+    "timestamp": "2026-08-12T10:23:45.123Z",
+    "ip": "10.0.0.42",
+    "attack_type": "port_scan",
+    "confidence": 0.94,
+    "risk_score": 82,
+    "decision": "HARD_BLOCK",
+    "severity": "high",
+    "model": "random_forest"
+  }
+
+  Wazuh's built-in JSON_Decoder handles field extraction automatically
+  when log_format is "json". We just need a decoder to set the decoder
+  name so we can write rules against it, and a parent decoder so Wazuh
+  applies a consistent program_name for rule matching.
+-->
+
+<!-- Parent decoder — matches any line that looks like our NAS JSON event -->
+<decoder name="nas-detection">
+  <prematch>{"timestamp":</prematch>
+</decoder>
+
+<!-- Child decoder — uses the built-in JSON plugin to extract all fields -->
+<decoder name="nas-detection-json">
+  <parent>nas-detection</parent>
+  <plugin_decoder>JSON_Decoder</plugin_decoder>
+</decoder>

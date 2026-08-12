@@ -1,9 +1,9 @@
 import React, { useRef, useEffect } from 'react'
-import { Activity, AlertTriangle, BarChart3, Lock, Sun, Moon, Wifi } from 'lucide-react'
+import { Activity, AlertTriangle, BarChart3, Lock, Sun, Moon, Wifi, LogOut } from 'lucide-react'
 import { useCursorPhysics } from '../hooks/useCursorPhysics'
 import { useDarkMode } from '../hooks/useDarkMode'
 
-function Sidebar({ activeSection, setActiveSection }) {
+function Sidebar({ activeSection, setActiveSection, role, authRequired, onLogout }) {
   const { getInfluence } = useCursorPhysics()
   const { isDark, toggle } = useDarkMode()
   const navItemsRef = useRef([])
@@ -66,12 +66,27 @@ function Sidebar({ activeSection, setActiveSection }) {
           })}
         </div>
 
-        {/* Footer: status + theme toggle */}
+        {/* Footer: status + theme toggle + auth */}
         <div className="sidebar-footer">
           <div className="navbar-status">
             <span className="status-indicator" />
             LIVE
           </div>
+          {authRequired && role && (
+            <span style={{ color: '#8b949e', fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              {role}
+            </span>
+          )}
+          {authRequired && onLogout && (
+            <button
+              className="navbar-theme-toggle"
+              onClick={onLogout}
+              aria-label="Sign out"
+              title="Sign out"
+            >
+              <LogOut size={12} />
+            </button>
+          )}
           <button
             className="navbar-theme-toggle"
             onClick={toggle}

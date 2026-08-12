@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+*.egg-info/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Dev artifacts
+.DS_Store
+.env
+*.log
+docs/
+REPORT.md
+network_attack_simulator_v2_buildplan.md
+CURSOR_ANIMATION_GUIDE.md

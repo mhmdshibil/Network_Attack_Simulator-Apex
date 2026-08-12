@@ -5,9 +5,10 @@
  * - Click any row to open a SHAP "why did this fire?" drawer
  */
 import React, { useCallback, useState, useRef } from 'react'
-import { AlertCircle, AlertTriangle, X, Zap } from 'lucide-react'
-import { fetchDetections, fetchExplanation } from '../api/api'
+import { AlertTriangle, X, Zap, Brain } from 'lucide-react'
+import { fetchDetections, fetchExplanation, generateIncidentSummary } from '../api/api'
 import { useDetectionStream } from '../hooks/useDetectionStream'
+import { useAuth } from '../context/AuthContext'
 
 const T = {
   bg:      '#131316',
@@ -63,14 +64,26 @@ function ShapBar({ feature, value, shap, direction }) {
 function ExplainDrawer({ row, onClose }) {
   const [explain, setExplain] = React.useState(null)
   const [loading, setLoading] = React.useState(true)
+  const [summary, setSummary] = React.useState(null)
+  const [summaryLoading, setSummaryLoading] = React.useState(false)
+  const { llmConfigured } = useAuth()
 
   React.useEffect(() => {
     if (!row) return
     setLoading(true)
+    setSummary(null)
     fetchExplanation(row.ip, row.timestamp)
       .then(d => { setExplain(d); setLoading(false) })
       .catch(() => { setExplain(null); setLoading(false) })
   }, [row])
+
+  const handleSummarize = async () => {
+    if (!row || summaryLoading) return
+    setSummaryLoading(true)
+    const result = await generateIncidentSummary(row)
+    setSummary(result)
+    setSummaryLoading(false)
+  }
 
   if (!row) return null
 
@@ -99,6 +112,19 @@ function ExplainDrawer({ row, onClose }) {
           <X size={16} />
         </button>
       </div>
+
+      {/* MITRE badge */}
+      {row.mitre && row.mitre.technique_id !== 'T0000' && (
+        <div style={{ marginBottom: '16px', padding: '10px 12px', background: 'rgba(155,89,182,0.07)', border: '1px solid rgba(155,89,182,0.2)', borderRadius: '4px' }}>
+          <div style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: '9px', color: T.muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>MITRE ATT&CK</div>
+          <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', color: T.purple, fontWeight: 600 }}>
+            {row.mitre.technique_id} · {row.mitre.technique}
+          </div>
+          <div style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: '11px', color: T.muted, marginTop: '2px' }}>
+            Tactic: {row.mitre.tactic}
+          </div>
+        </div>
+      )}
 
       {/* Scores */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '20px' }}>
@@ -137,6 +163,50 @@ function ExplainDrawer({ row, onClose }) {
           </div>
         </div>
       )}
+
+      {/* LLM Incident Summary */}
+      <div style={{ marginTop: '20px' }}>
+        <div style={{ marginBottom: '8px', fontFamily: "'IBM Plex Sans',sans-serif", fontSize: '10px', color: T.muted, textTransform: 'uppercase', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Brain size={10} /> Analyst Summary (Claude AI)
+        </div>
+
+        {!llmConfigured && (
+          <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.muted, padding: '8px 12px', background: 'rgba(110,113,128,0.06)', border: '1px solid rgba(110,113,128,0.15)', borderRadius: '4px' }}>
+            not configured — set <span style={{ color: T.accent }}>ANTHROPIC_API_KEY</span> to enable
+          </div>
+        )}
+
+        {llmConfigured && !summary && !summaryLoading && (
+          <button
+            onClick={handleSummarize}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(45,217,255,0.08)', border: '1px solid rgba(45,217,255,0.2)', borderRadius: '4px', color: T.accent, fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', padding: '8px 14px', cursor: 'pointer', width: '100%', justifyContent: 'center' }}
+          >
+            <Brain size={12} /> Generate Incident Summary
+          </button>
+        )}
+        {llmConfigured && summaryLoading && (
+          <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: T.muted, padding: '8px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: T.accent, animation: 'pulse 1s infinite' }} />
+            Consulting Claude…
+          </div>
+        )}
+        {llmConfigured && summary && !summaryLoading && (
+          <div style={{ background: 'rgba(45,217,255,0.04)', border: '1px solid rgba(45,217,255,0.12)', borderRadius: '4px', padding: '12px' }}>
+            <p style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: '12px', color: T.text, lineHeight: '1.6', margin: '0 0 10px 0' }}>
+              {summary.summary}
+            </p>
+            {summary.recommendation && (
+              <div style={{ borderTop: '1px solid rgba(45,217,255,0.12)', paddingTop: '8px', marginTop: '8px' }}>
+                <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '9px', color: T.accent, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Recommendation: </span>
+                <span style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: '12px', color: T.warning }}>{summary.recommendation}</span>
+              </div>
+            )}
+            {summary.cached && (
+              <div style={{ marginTop: '6px', fontFamily: "'IBM Plex Mono',monospace", fontSize: '9px', color: T.muted }}>cached</div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Timestamp */}
       <div style={{ marginTop: '24px', fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.muted }}>
@@ -202,6 +272,7 @@ function DetectedAttacks() {
                 <th>Timestamp</th>
                 <th>Source IP</th>
                 <th>Attack Type</th>
+                <th>MITRE</th>
                 <th>Confidence</th>
                 <th>Action</th>
                 <th>IF</th>
@@ -234,6 +305,9 @@ function DetectedAttacks() {
                       }}>
                         {attack.label?.replace(/_/g, ' ')}
                       </span>
+                    </td>
+                    <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.purple }}>
+                      {attack.mitre?.technique_id || '—'}
                     </td>
                     <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: T.text }}>
                       {attack.confidence != null ? `${(attack.confidence * 100).toFixed(0)}%` : '—'}

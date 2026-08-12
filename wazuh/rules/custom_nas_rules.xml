@@ -1,0 +1,79 @@
+<!--
+  Custom Wazuh rules — Network Attack Simulator detection events
+  Applied to events decoded by the nas-detection decoder.
+  Rule IDs 100001–100010 are reserved for custom NAS rules.
+-->
+
+<group name="nas,network-attack-simulator">
+
+  <!-- Base rule — any NAS detection event -->
+  <rule id="100001" level="3">
+    <decoded_as>nas-detection-json</decoded_as>
+    <description>Network Attack Simulator: detection event logged</description>
+    <group>nas_event</group>
+  </rule>
+
+  <!-- High confidence attack detected -->
+  <rule id="100002" level="7">
+    <if_sid>100001</if_sid>
+    <field name="decision">HARD_BLOCK|SOFT_BLOCK|RATE_LIMIT</field>
+    <description>NAS: active response triggered for $(attack_type) from $(ip)</description>
+    <group>nas_response,attack_detected</group>
+    <mitre>
+      <id>T1046</id>
+    </mitre>
+  </rule>
+
+  <!-- Hard block — highest severity -->
+  <rule id="100003" level="10">
+    <if_sid>100002</if_sid>
+    <field name="decision">HARD_BLOCK</field>
+    <description>NAS: IP $(ip) hard-blocked for $(attack_type) (risk: $(risk_score))</description>
+    <group>nas_hard_block,pci_dss_11.4,gdpr_IV_35.7.d</group>
+  </rule>
+
+  <!-- Brute force specifically -->
+  <rule id="100004" level="8">
+    <if_sid>100001</if_sid>
+    <field name="attack_type">bruteforce|brute_force</field>
+    <description>NAS: brute-force attack detected from $(ip)</description>
+    <group>nas_bruteforce,authentication_failed</group>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+  </rule>
+
+  <!-- DDoS -->
+  <rule id="100005" level="9">
+    <if_sid>100001</if_sid>
+    <field name="attack_type">ddos</field>
+    <description>NAS: DDoS attack detected from $(ip)</description>
+    <group>nas_ddos,dos_attack</group>
+    <mitre>
+      <id>T1498</id>
+    </mitre>
+  </rule>
+
+  <!-- Unknown anomaly (zero-day path from Isolation Forest) -->
+  <rule id="100006" level="6">
+    <if_sid>100001</if_sid>
+    <field name="attack_type">unknown_anomaly</field>
+    <description>NAS: anomaly detector flagged unknown traffic pattern from $(ip)</description>
+    <group>nas_anomaly,zero_day</group>
+    <mitre>
+      <id>T1036</id>
+    </mitre>
+  </rule>
+
+  <!-- SQL injection -->
+  <rule id="100007" level="8">
+    <if_sid>100001</if_sid>
+    <field name="attack_type">sql_injection</field>
+    <description>NAS: SQL injection attempt detected from $(ip)</description>
+    <group>nas_sqli,web_attack</group>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+  </rule>
+
+</group>

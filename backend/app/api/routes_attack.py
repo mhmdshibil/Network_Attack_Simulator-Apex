@@ -4,18 +4,18 @@
 # By centralizing these attack-focused routes, the module offers a clear and organized interface for
 # interacting with the core security functions of the application.
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Query
 import pandas as pd
 from backend.app.services.detection_service import DetectionEngine
 from backend.app.core.paths import DETECTIONS_FILE
+from backend.app.ml.mitre_mapping import enrich
+from backend.app.core.auth import require_analyst, require_admin
 
-# Create a new router for the attack-related endpoints. This helps in organizing the API and applies
-# a consistent prefix and tag to all routes defined in this module.
 router = APIRouter(prefix="/api", tags=["attacks"])
 
 
 @router.get("/detections")
-def get_detections(limit: int = 50):
+def get_detections(limit: int = 50, _: dict = Depends(require_analyst)):
     """
     Retrieves the latest attack detection records from the system.
 
@@ -48,15 +48,14 @@ def get_detections(limit: int = 50):
         # If there's an error reading the file, return an empty list.
         return []
 
-    # If the DataFrame is empty, return an empty list.
     if df.empty:
         return []
 
-    # Return the last 'limit' detections as a list of dictionaries.
-    return df.tail(limit).to_dict(orient="records")
+    records = df.tail(limit).to_dict(orient="records")
+    return [enrich(r) for r in records]
 
 @router.post("/detect/run")
-def run_detection():
+def run_detection(_: dict = Depends(require_admin)):
     """
     Manually triggers a single run of the attack detection engine.
 
@@ -81,7 +80,7 @@ def run_detection():
 
 # New route: GET /blocked_ips
 @router.get("/blocked_ips")
-def get_blocked_ips():
+def get_blocked_ips(_: dict = Depends(require_analyst)):
     """
     Retrieves a list of all unique IP addresses that have been blocked.
 

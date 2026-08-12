@@ -1,5 +1,6 @@
 /**
  * Phase 8 — WebSocket hook with polling fallback.
+ * Phase 11 — Passes JWT token as query param for WS auth.
  *
  * Connects to /ws/detections. On each "detection" message the callback fires.
  * If the WebSocket is unavailable or disconnects, falls back to polling
@@ -10,6 +11,14 @@ import { useEffect, useRef, useCallback } from 'react'
 const WS_BASE = (import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000')
   .replace(/^http/, 'ws')
 
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000'
+
+function wsUrl() {
+  const token = localStorage.getItem('apex_token')
+  const base = `${WS_BASE}/ws/detections`
+  return token ? `${base}?token=${encodeURIComponent(token)}` : base
+}
+
 export function useDetectionStream(onDetection, { pollInterval = 5000 } = {}) {
   const wsRef = useRef(null)
   const pollRef = useRef(null)
@@ -18,10 +27,12 @@ export function useDetectionStream(onDetection, { pollInterval = 5000 } = {}) {
   const startPolling = useCallback(() => {
     if (fallbackActive.current) return
     fallbackActive.current = true
-    const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000'
+    const token = localStorage.getItem('apex_token')
+    const headers = token ? { Authorization: `Bearer ${token}` } : {}
     const poll = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/detections?limit=20`)
+        const res = await fetch(`${API_BASE}/api/detections?limit=20`, { headers })
+        if (res.status === 401) return
         const data = await res.json()
         const list = Array.isArray(data) ? data : []
         list.reverse().forEach(d => onDetection(d))
@@ -41,7 +52,7 @@ export function useDetectionStream(onDetection, { pollInterval = 5000 } = {}) {
 
     function connect() {
       try {
-        const ws = new WebSocket(`${WS_BASE}/ws/detections`)
+        const ws = new WebSocket(wsUrl())
         wsRef.current = ws
 
         ws.onopen = () => {
