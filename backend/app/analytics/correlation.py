@@ -54,7 +54,7 @@ def correlate_attacks(window: str = "5m"):
     # Read the detections data from the CSV file.
     df = pd.read_csv(
         DETECTIONS_FILE,
-        names=["ip", "timestamp", "label", "action"]
+        usecols=["ip", "timestamp", "label", "action"]
     )
 
     # If the DataFrame is empty, return an empty list.

@@ -44,7 +44,7 @@ def get_metrics():
     # Read the detections data from the CSV file.
     df = pd.read_csv(
         DETECTIONS_FILE,
-        names=["ip", "timestamp", "label", "action"]
+        usecols=["ip", "timestamp", "label", "action"]
     )
 
     # Check if the required columns are present in the DataFrame.
@@ -125,7 +125,7 @@ def get_timeline(interval: str = "5s"):
     # Read the detections data from the CSV file.
     df = pd.read_csv(
         DETECTIONS_FILE,
-        names=["ip", "timestamp", "label", "action"]
+        usecols=["ip", "timestamp", "label", "action"]
     )
 
     # Check if the required columns are present in the DataFrame.

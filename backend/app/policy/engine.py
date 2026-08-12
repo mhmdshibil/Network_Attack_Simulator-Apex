@@ -1,3 +1,7 @@
+# DEPRECATED — this module is no longer on the active code path.
+# Active policy logic lives in backend/app/response/decision.py.
+# This file is kept for reference only.
+
 import json
 from pathlib import Path
 from datetime import datetime, timedelta

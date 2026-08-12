@@ -49,7 +49,7 @@ def get_alerts(limit: int = 20):
     try:
         df = pd.read_csv(
             DETECTIONS_FILE,
-            names=["ip", "timestamp", "label", "action"],
+            usecols=["ip", "timestamp", "label", "action"],
         )
         required = {"ip", "timestamp", "label", "action"}
         if not required.issubset(df.columns):

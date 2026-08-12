@@ -44,3 +44,21 @@ export async function fetchAlerts(limit = 20) {
   const res = await fetch(`${API_BASE}/api/alerts?limit=${limit}`)
   return res.json()
 }
+
+export async function fetchExplanation(ip, ts = null) {
+  const params = new URLSearchParams({ ip })
+  if (ts) params.set('ts', ts)
+  const res = await fetch(`${API_BASE}/api/explain?${params}`)
+  if (!res.ok) return null
+  return res.json()
+}
+
+export async function fetchSystemOverview() {
+  const res = await fetch(`${API_BASE}/api/system/overview`)
+  return res.json()
+}
+
+export async function fetchSystemMetrics() {
+  const res = await fetch(`${API_BASE}/api/system/metrics`)
+  return res.json()
+}

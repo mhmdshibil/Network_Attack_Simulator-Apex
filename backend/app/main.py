@@ -12,6 +12,8 @@ from backend.app.api.routes_audit import router as audit_router
 from backend.app.api.routes_system import router as system_router
 from backend.app.api.routes_alerts import router as alerts_router
 from backend.app.api.routes_auto_attack import router as auto_attack_router
+from backend.app.api.routes_explain import router as explain_router
+from backend.app.api.routes_ws import router as ws_router
 from backend.app.services.auto_attack import auto_attack_loop
 
 
@@ -44,6 +46,8 @@ app.include_router(audit_router)
 app.include_router(system_router)
 app.include_router(alerts_router)
 app.include_router(auto_attack_router)
+app.include_router(explain_router)
+app.include_router(ws_router)
 
 
 @app.get("/api/health")

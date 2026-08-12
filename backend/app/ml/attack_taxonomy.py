@@ -1,38 +1,46 @@
+# Feature ranges expressed in terms of what aggregate_by_time_window() produces
+# for a 5-second window. Each key matches FEATURE_COLUMNS exactly.
+#
+# packets_per_second  = sum(packet_count) per window
+# avg_request_rate    = mean(request_rate) per window
+# failed_connections  = count(success_flag == False) per window
+# unique_ports        = nunique(destination_port) per window
+
 ATTACK_CLASSES = {
     "normal": {
-        "packet_rate": (1, 5),
-        "bytes_sent": (100, 500),
+        "packets_per_second": (1, 25),   # 1 covers sparse single-IP windows
+        "avg_request_rate": (0.5, 2.0),
+        "failed_connections": (0, 1),
         "unique_ports": (1, 2),
-        "failed_logins": (0, 0),
     },
     "port_scan": {
-        "packet_rate": (20, 50),
-        "bytes_sent": (200, 800),
+        "packets_per_second": (40, 120),
+        "avg_request_rate": (20.0, 40.0),
+        "failed_connections": (15, 40),
         "unique_ports": (20, 100),
-        "failed_logins": (0, 0),
     },
     "ddos": {
-        "packet_rate": (200, 1000),
-        "bytes_sent": (10000, 50000),
+        "packets_per_second": (500, 3000),
+        "avg_request_rate": (100.0, 500.0),
+        "failed_connections": (0, 10),
         "unique_ports": (1, 3),
-        "failed_logins": (0, 0),
     },
     "bruteforce": {
-        "packet_rate": (10, 30),
-        "bytes_sent": (500, 2000),
+        "packets_per_second": (10, 50),
+        "avg_request_rate": (1.0, 5.0),
+        "failed_connections": (8, 50),
         "unique_ports": (1, 2),
-        "failed_logins": (10, 100),
     },
     "sql_injection": {
-        "packet_rate": (5, 15),
-        "bytes_sent": (2000, 8000),
+        "packets_per_second": (5, 20),
+        "avg_request_rate": (2.0, 8.0),
+        "failed_connections": (1, 5),
         "unique_ports": (1, 2),
-        "failed_logins": (0, 2),
     },
     "malware": {
-        "packet_rate": (50, 150),
-        "bytes_sent": (5000, 30000),
-        "unique_ports": (3, 10),
-        "failed_logins": (0, 0),
-    }
+        "packets_per_second": (50, 300),
+        "avg_request_rate": (5.0, 50.0),
+        "failed_connections": (0, 5),
+        "unique_ports": (2, 10),
+    },
 }

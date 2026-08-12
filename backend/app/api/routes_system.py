@@ -3,7 +3,12 @@ from datetime import datetime, timezone
 import json
 import csv
 
-from backend.app.core.paths import DATA_DIR
+from backend.app.core.paths import (
+    DATA_DIR,
+    HARD_BLOCKED_IPS_FILE,
+    DECISION_AUDIT_FILE,
+    DETECTIONS_FILE,
+)
 
 
 router = APIRouter(
@@ -19,8 +24,8 @@ router = APIRouter(
 @router.get("/overview")
 def system_overview():
 
-    hard_block_file = DATA_DIR / "policies" / "hard_blocked_ips.json"
-    audit_file = DATA_DIR / "audit" / "decision_audit.csv"
+    hard_block_file = HARD_BLOCKED_IPS_FILE
+    audit_file = DECISION_AUDIT_FILE
 
     now = datetime.now(timezone.utc)
     window_minutes = 5
@@ -141,8 +146,8 @@ def system_readiness():
 @router.get("/metrics")
 def system_metrics():
 
-    audit_file = DATA_DIR / "audit" / "decision_audit.csv"
-    hard_block_file = DATA_DIR / "policies" / "hard_blocked_ips.json"
+    audit_file = DECISION_AUDIT_FILE
+    hard_block_file = HARD_BLOCKED_IPS_FILE
 
     total_decisions = 0
     blocked = 0
@@ -203,43 +208,59 @@ def system_metrics():
 @router.get("/blocked_ips")
 def blocked_ips():
 
-    detections_file = DATA_DIR / "processed" / "detections.csv"
+    detections_file = DETECTIONS_FILE
 
     blocked_list = []
 
     try:
         with open(detections_file) as f:
             reader = csv.reader(f)
-
             for row in reader:
-
                 if len(row) < 4:
                     continue
 
-                ip, ts, label, action = row
+                ip    = row[0]
+                ts    = row[1]
+                label = row[2]
+                action = row[3]
+
+                # Skip header row if present
+                if ip == "ip":
+                    continue
 
                 if action != "blocked":
                     continue
+
+                # Column 5 is risk_score — present in new format, absent in old
+                try:
+                    risk = float(row[4]) if len(row) > 4 and row[4] != "risk_score" else 75.0
+                except (ValueError, IndexError):
+                    risk = 75.0
 
                 blocked_list.append({
                     "ip_address": ip,
                     "blocked_at": ts,
                     "reason": label,
-                    "risk_score": 75.0
+                    "risk_score": risk,
                 })
 
     except Exception:
         pass
 
+    avg_risk = (
+        round(sum(b["risk_score"] for b in blocked_list) / len(blocked_list), 1)
+        if blocked_list else 0
+    )
+
     stats = {
         "total_blocked": len(blocked_list),
-        "avg_risk_score": 75.0 if blocked_list else 0,
-        "last_blocked_at": blocked_list[-1]["blocked_at"] if blocked_list else None
+        "avg_risk_score": avg_risk,
+        "last_blocked_at": blocked_list[-1]["blocked_at"] if blocked_list else None,
     }
 
     return {
         "blocked_ips": blocked_list[-20:],  # last 20
-        "stats": stats
+        "stats": stats,
     }
 
 
@@ -250,8 +271,8 @@ def blocked_ips():
 @router.post("/reset")
 def system_reset():
 
-    audit_file = DATA_DIR / "audit" / "decision_audit.csv"
-    hard_block_file = DATA_DIR / "policies" / "hard_blocked_ips.json"
+    audit_file = DECISION_AUDIT_FILE
+    hard_block_file = HARD_BLOCKED_IPS_FILE
 
     cleared = []
 

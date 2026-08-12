@@ -38,7 +38,7 @@ def get_detections(limit: int = 50):
         # Read the detections data from the CSV file.
         df = pd.read_csv(
             DETECTIONS_FILE,
-            names=["ip", "timestamp", "label", "action"]
+            usecols=["ip", "timestamp", "label", "action"]
         )
         # Check if the required columns are present in the DataFrame.
         required_cols = {"ip", "timestamp", "label", "action"}
@@ -103,7 +103,7 @@ def get_blocked_ips():
         # Read the detections data from the CSV file.
         df = pd.read_csv(
             DETECTIONS_FILE,
-            names=["ip", "timestamp", "label", "action"]
+            usecols=["ip", "timestamp", "label", "action"]
         )
         # Check if the required columns are present in the DataFrame.
         required_cols = {"ip", "timestamp", "label", "action"}

@@ -30,7 +30,7 @@ def get_top_attackers(limit: int = Query(5, ge=1, le=100)):
 
     df = pd.read_csv(
         DETECTIONS_FILE,
-        names=["ip", "timestamp", "label", "action"]
+        usecols=["ip", "timestamp", "label", "action"]
     )
 
     df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
@@ -79,7 +79,7 @@ def attack_distribution():
 
     df = pd.read_csv(
         DETECTIONS_FILE,
-        names=["ip", "timestamp", "label", "action"]
+        usecols=["ip", "timestamp", "label", "action"]
     )
 
     if df.empty:
@@ -118,7 +118,7 @@ def attack_trends(
 
     df = pd.read_csv(
         DETECTIONS_FILE,
-        names=["ip", "timestamp", "label", "action"]
+        usecols=["ip", "timestamp", "label", "action"]
     )
 
     df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
@@ -212,7 +212,7 @@ def attack_timeline(interval: str = "5m", window: str = "24h"):
 
     df = pd.read_csv(
         DETECTIONS_FILE,
-        names=["ip", "timestamp", "label", "action"]
+        usecols=["ip", "timestamp", "label", "action"]
     )
 
     if df.empty:

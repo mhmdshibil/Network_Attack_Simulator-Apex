@@ -1,24 +1,28 @@
 import random
 import pandas as pd
 from backend.app.ml.attack_taxonomy import ATTACK_CLASSES
+from backend.app.ml.feature_engineering import FEATURE_COLUMNS
 
-def generate_samples(label: str, n: int):
+
+def generate_samples(label: str, n: int) -> list[dict]:
     cfg = ATTACK_CLASSES[label]
     rows = []
-
     for _ in range(n):
-        rows.append({
-            "packet_rate": random.randint(*cfg["packet_rate"]),
-            "bytes_sent": random.randint(*cfg["bytes_sent"]),
-            "unique_ports": random.randint(*cfg["unique_ports"]),
-            "failed_logins": random.randint(*cfg["failed_logins"]),
-            "label": label,
-        })
-
+        row = {col: _sample(cfg[col]) for col in FEATURE_COLUMNS}
+        row["label"] = label
+        rows.append(row)
     return rows
 
-def generate_dataset(samples_per_class=1000):
-    data = []
+
+def _sample(rng):
+    lo, hi = rng
+    if isinstance(lo, float) or isinstance(hi, float):
+        return round(random.uniform(lo, hi), 2)
+    return random.randint(int(lo), int(hi))
+
+
+def generate_dataset(samples_per_class: int = 1000) -> pd.DataFrame:
+    rows = []
     for label in ATTACK_CLASSES:
-        data.extend(generate_samples(label, samples_per_class))
-    return pd.DataFrame(data)
+        rows.extend(generate_samples(label, samples_per_class))
+    return pd.DataFrame(rows)

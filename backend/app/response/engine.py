@@ -37,7 +37,9 @@ def evaluate_and_respond(
 
     if decision_type == "BLOCK":
         action = "firewall_block"
-    elif decision_type in ("MONITOR", "RATE_LIMIT"):
+    elif decision_type == "RATE_LIMIT":
+        action = "throttle"       # now wired correctly
+    elif decision_type == "MONITOR":
         action = "log"
     else:
         action = "noop"

@@ -2,6 +2,14 @@ import json
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
+from backend.app.core.paths import (
+    HARD_BLOCKED_IPS_FILE,
+    REPUTATION_FILE,
+    LAST_SEEN_FILE,
+    WHITELIST_FILE,
+)
+
+
 def _safe_json_load(path: Path, default):
     try:
         if not path.exists():
@@ -10,14 +18,15 @@ def _safe_json_load(path: Path, default):
             return default
         return json.loads(path.read_text() or json.dumps(default))
     except Exception:
-        # Corrupted file fallback
         return default
+
 
 def _atomic_write(path: Path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, indent=2))
     tmp.replace(path)
+
 
 def window_to_minutes(window: str) -> float:
     if window.endswith("m"):
@@ -26,18 +35,13 @@ def window_to_minutes(window: str) -> float:
         return float(window[:-1]) * 60
     return 5.0
 
-HARD_BLOCK_FILE = Path("backend/app/policy/hard_blocked_ips.json")
-
 
 def _load_hard_blocked_ips() -> dict:
-    return _safe_json_load(HARD_BLOCK_FILE, {})
+    return _safe_json_load(HARD_BLOCKED_IPS_FILE, {})
 
 
 def _save_hard_blocked_ips(data: dict):
-    _atomic_write(HARD_BLOCK_FILE, data)
-
-
-REPUTATION_FILE = Path("data/policies/ip_reputation.json")
+    _atomic_write(HARD_BLOCKED_IPS_FILE, data)
 
 
 def _load_reputation() -> dict:
@@ -48,20 +52,14 @@ def _save_reputation(data: dict):
     _atomic_write(REPUTATION_FILE, data)
 
 
-WHITELIST_FILE = Path("data/policies/whitelist_ips.json")
-
 def _load_whitelist() -> set:
     data = _safe_json_load(WHITELIST_FILE, [])
     return set(data)
 
 
-# Reputation decay (Step 6)
-LAST_SEEN_FILE = Path("data/policies/ip_last_seen.json")
-
 def _load_last_seen() -> dict:
     data = _safe_json_load(LAST_SEEN_FILE, {})
     if isinstance(data, list):
-        # Convert accidental list to dict
         data = {}
     return data
 

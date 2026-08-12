@@ -1,22 +1,21 @@
 import json
-from pathlib import Path
 from datetime import datetime, timezone
 
-HARDLOCK_FILE = Path("data/processed/hard_blocked_ips.json")
+from backend.app.core.paths import HARD_BLOCKED_IPS_FILE
 
 
 def _load() -> dict:
-    if not HARDLOCK_FILE.exists():
+    if not HARD_BLOCKED_IPS_FILE.exists():
         return {}
     try:
-        return json.loads(HARDLOCK_FILE.read_text())
+        return json.loads(HARD_BLOCKED_IPS_FILE.read_text())
     except Exception:
         return {}
 
 
 def _save(data: dict):
-    HARDLOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
-    HARDLOCK_FILE.write_text(json.dumps(data, indent=2))
+    HARD_BLOCKED_IPS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    HARD_BLOCKED_IPS_FILE.write_text(json.dumps(data, indent=2))
 
 
 def is_hard_blocked(ip: str) -> bool:
