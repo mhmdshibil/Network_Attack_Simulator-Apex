@@ -1,201 +1,152 @@
-import React, { useEffect, useRef } from 'react';
-import * as THREE from 'three';
+import React, { useEffect, useRef } from 'react'
 
-const ParticleBackground = () => {
-  const containerRef = useRef(null);
-  const sceneRef = useRef(null);
-  const rendererRef = useRef(null);
-  const cameraRef = useRef(null);
-  const particleSystemsRef = useRef([]);
-  const mouseRef = useRef({ x: 0, y: 0, targetX: 0, targetY: 0 });
-  const timeRef = useRef(0);
-  const rafRef = useRef(null);
+const PARTICLE_COUNT = 220
+const FLARE_LIFETIME = 1400
+const RING_LIFETIME  = 1800
+
+function rand(min, max) { return min + Math.random() * (max - min) }
+
+export default function ParticleBackground() {
+  const canvasRef = useRef(null)
+  const stateRef  = useRef({ particles: [], flares: [], rings: [], raf: null, lastNow: 0 })
 
   useEffect(() => {
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-                     ('ontouchstart' in window);
-    if (isMobile) return;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const canvas  = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
 
-    const container = containerRef.current;
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    function resize() {
+      canvas.width  = window.innerWidth
+      canvas.height = window.innerHeight
+    }
+    resize()
+    window.addEventListener('resize', resize)
 
-    const scene = new THREE.Scene();
-    sceneRef.current = scene;
+    // Init slow-drifting white dots
+    const W = canvas.width, H = canvas.height
+    stateRef.current.particles = Array.from({ length: PARTICLE_COUNT }, () => ({
+      x:     rand(0, W),
+      y:     rand(0, H),
+      vx:    rand(-0.12, 0.12),
+      vy:    rand(-0.12, 0.12),
+      r:     rand(0.4, 1.4),
+      alpha: rand(0.10, 0.38),
+    }))
 
-    const camera = new THREE.OrthographicCamera(width / -2, width / 2, height / 2, height / -2, 1, 1000);
-    camera.position.z = 500;
-    cameraRef.current = camera;
-
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false, powerPreference: 'low-power' });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(1);
-    container.appendChild(renderer.domElement);
-    rendererRef.current = renderer;
-
-    const vertexShader = `
-      uniform float time;
-      uniform vec2 mouse;
-      uniform float clusterPhase;
-      uniform vec2 clusterCenter;
-      uniform float rotationSpeed;
-      attribute vec3 offset;
-      attribute float angle;
-      attribute float speed;
-      attribute vec3 color;
-      attribute float size;
-      varying vec3 vColor;
-      varying float vAlpha;
-      void main() {
-        vColor = color;
-        vec2 mouseInfluence = mouse * 0.3;
-        float rotationAngle = time * rotationSpeed + clusterPhase + length(mouseInfluence) * 0.5;
-        float cos_r = cos(rotationAngle + angle);
-        float sin_r = sin(rotationAngle + angle);
-        vec3 rotated = vec3(offset.x * cos_r - offset.y * sin_r, offset.x * sin_r + offset.y * cos_r, offset.z);
-        float wave = sin(time * speed + angle * 2.0) * 15.0;
-        rotated.x += wave;
-        rotated.y += cos(time * speed + angle) * 15.0;
-        vec2 toMouse = mouseInfluence * 50.0;
-        rotated.xy += toMouse * (1.0 - length(offset.xy) / 300.0) * 0.3;
-        vec3 finalPosition = rotated + vec3(clusterCenter, 0.0);
-        vec4 mvPosition = modelViewMatrix * vec4(finalPosition, 1.0);
-        gl_Position = projectionMatrix * mvPosition;
-        float distanceFromCenter = length(offset.xy) / 300.0;
-        gl_PointSize = size * (1.0 - distanceFromCenter * 0.3) * (300.0 / -mvPosition.z);
-        vAlpha = 0.15 + sin(time * speed * 2.0) * 0.08;
-        vAlpha *= (1.0 - distanceFromCenter * 0.6);
-      }
-    `;
-
-    const fragmentShader = `
-      varying vec3 vColor;
-      varying float vAlpha;
-      void main() {
-        vec2 center = gl_PointCoord - vec2(0.5);
-        float dashShape = 1.0 - smoothstep(0.0, 0.5, abs(center.x) * 2.0);
-        dashShape *= 1.0 - smoothstep(0.0, 0.3, abs(center.y) * 4.0);
-        float alpha = dashShape * vAlpha;
-        if (alpha < 0.01) discard;
-        gl_FragColor = vec4(vColor, alpha);
-      }
-    `;
-
-    /* Cold, dim palette — barely visible on #0A0E14 */
-    const colors = [
-      new THREE.Color(0x0D2035),
-      new THREE.Color(0x0A1A28),
-      new THREE.Color(0x0C2030),
-      new THREE.Color(0x081825),
-      new THREE.Color(0x0B1E30),
-      new THREE.Color(0x091620),
-    ];
-
-    const clusterCount = 6;
-    const particlesPerCluster = 200;
-
-    for (let c = 0; c < clusterCount; c++) {
-      const geometry = new THREE.BufferGeometry();
-      const positions = [], offsets = [], angles = [], speeds = [], particleColors = [], sizes = [];
-
-      for (let i = 0; i < particlesPerCluster; i++) {
-        positions.push(0, 0, 0);
-        const radius = Math.pow(Math.random(), 0.7) * 280 + 20;
-        const theta = Math.random() * Math.PI * 2;
-        offsets.push(Math.cos(theta) * radius, Math.sin(theta) * radius, (Math.random() - 0.5) * 50);
-        angles.push(theta);
-        speeds.push(0.3 + Math.random() * 0.6);
-        const color = colors[Math.floor(Math.random() * colors.length)];
-        particleColors.push(color.r, color.g, color.b);
-        sizes.push(1.5 + Math.random() * 2);
-      }
-
-      geometry.setAttribute('position',  new THREE.Float32BufferAttribute(positions, 3));
-      geometry.setAttribute('offset',    new THREE.Float32BufferAttribute(offsets, 3));
-      geometry.setAttribute('angle',     new THREE.Float32BufferAttribute(angles, 1));
-      geometry.setAttribute('speed',     new THREE.Float32BufferAttribute(speeds, 1));
-      geometry.setAttribute('color',     new THREE.Float32BufferAttribute(particleColors, 3));
-      geometry.setAttribute('size',      new THREE.Float32BufferAttribute(sizes, 1));
-
-      const cols = 3, rows = 2;
-      const col = c % cols, row = Math.floor(c / cols);
-      const clusterX = (col - (cols - 1) / 2) * (width / (cols + 0.5));
-      const clusterY = (row - (rows - 1) / 2) * (height / (rows + 0.5));
-
-      const material = new THREE.ShaderMaterial({
-        uniforms: {
-          time: { value: 0 },
-          mouse: { value: new THREE.Vector2(0, 0) },
-          clusterPhase: { value: (c / clusterCount) * Math.PI * 2 },
-          clusterCenter: { value: new THREE.Vector2(clusterX, clusterY) },
-          rotationSpeed: { value: 0.05 + Math.random() * 0.05 },
-        },
-        vertexShader, fragmentShader,
-        transparent: true, depthTest: false, depthWrite: false,
-        blending: THREE.AdditiveBlending,
-      });
-
-      const particles = new THREE.Points(geometry, material);
-      scene.add(particles);
-      particleSystemsRef.current.push(particles);
+    if (reduced) {
+      // Static snapshot — draw once, no animation
+      ctx.fillStyle = '#000'
+      ctx.fillRect(0, 0, W, H)
+      stateRef.current.particles.forEach(p => {
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(255,255,255,${p.alpha})`
+        ctx.fill()
+      })
+      return () => window.removeEventListener('resize', resize)
     }
 
-    const handleMouseMove = (e) => {
-      mouseRef.current.targetX = (e.clientX / width) * 2 - 1;
-      mouseRef.current.targetY = -(e.clientY / height) * 2 + 1;
-    };
-    window.addEventListener('mousemove', handleMouseMove);
+    function spawnFlare(detail) {
+      const label      = detail?.label || detail?.attack_type || ''
+      if (label === 'normal') return
+      const confidence = typeof detail?.confidence === 'number' ? detail.confidence : 0.7
+      const score      = typeof detail?.risk_score === 'number'  ? detail.risk_score  : 50
+      // Intensity: driven by confidence + risk_score, no hue
+      const intensity  = Math.min(0.4 + confidence * 0.4 + (score / 100) * 0.2, 1.0)
+      const size       = 6 + intensity * 18
+      const x = rand(canvas.width  * 0.08, canvas.width  * 0.92)
+      const y = rand(canvas.height * 0.08, canvas.height * 0.92)
+      const born = performance.now()
+      stateRef.current.flares.push({ x, y, size, intensity, born })
+      stateRef.current.rings.push({  x, y, maxR: 50 + size * 5, intensity, born })
+    }
 
-    const animate = () => {
-      rafRef.current = requestAnimationFrame(animate);
-      timeRef.current += 0.006;
-      mouseRef.current.x += (mouseRef.current.targetX - mouseRef.current.x) * 0.04;
-      mouseRef.current.y += (mouseRef.current.targetY - mouseRef.current.y) * 0.04;
-      particleSystemsRef.current.forEach((p) => {
-        p.material.uniforms.time.value = timeRef.current;
-        p.material.uniforms.mouse.value.set(mouseRef.current.x, mouseRef.current.y);
-      });
-      renderer.render(scene, camera);
-    };
-    animate();
+    function update(dt) {
+      const W = canvas.width, H = canvas.height
+      stateRef.current.particles.forEach(p => {
+        p.x += p.vx * dt * 0.06
+        p.y += p.vy * dt * 0.06
+        if (p.x < -2)  p.x = W + 2
+        if (p.x > W+2) p.x = -2
+        if (p.y < -2)  p.y = H + 2
+        if (p.y > H+2) p.y = -2
+      })
+    }
 
-    const handleResize = () => {
-      const w = window.innerWidth, h = window.innerHeight;
-      camera.left = w / -2; camera.right = w / 2;
-      camera.top = h / 2; camera.bottom = h / -2;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-      const cols = 3, rows = 2;
-      particleSystemsRef.current.forEach((p, i) => {
-        const c = i % cols, r = Math.floor(i / cols);
-        p.material.uniforms.clusterCenter.value.set(
-          (c - (cols - 1) / 2) * (w / (cols + 0.5)),
-          (r - (rows - 1) / 2) * (h / (rows + 0.5))
-        );
-      });
-    };
-    window.addEventListener('resize', handleResize);
+    function draw(now) {
+      const W = canvas.width, H = canvas.height
+      // Pure black background
+      ctx.fillStyle = '#000000'
+      ctx.fillRect(0, 0, W, H)
+
+      // Drifting dots
+      stateRef.current.particles.forEach(p => {
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(255,255,255,${p.alpha})`
+        ctx.fill()
+      })
+
+      // Detection flares (bright radial glow)
+      stateRef.current.flares = stateRef.current.flares.filter(f => {
+        const age = now - f.born
+        if (age > FLARE_LIFETIME) return false
+        const t     = age / FLARE_LIFETIME
+        const alpha = (1 - t) * f.intensity
+        const r     = f.size * (1 + t * 2.5)
+        const g     = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, r)
+        g.addColorStop(0,   `rgba(255,255,255,${alpha})`)
+        g.addColorStop(0.4, `rgba(255,255,255,${alpha * 0.4})`)
+        g.addColorStop(1,   'rgba(255,255,255,0)')
+        ctx.beginPath()
+        ctx.arc(f.x, f.y, r, 0, Math.PI * 2)
+        ctx.fillStyle = g
+        ctx.fill()
+        return true
+      })
+
+      // Expanding rings
+      stateRef.current.rings = stateRef.current.rings.filter(r => {
+        const age = now - r.born
+        if (age > RING_LIFETIME) return false
+        const t       = age / RING_LIFETIME
+        const radius  = r.maxR * t
+        const alpha   = (1 - t) * 0.75 * r.intensity
+        const lw      = 1.5 * (1 - t * 0.7)
+        ctx.beginPath()
+        ctx.arc(r.x, r.y, radius, 0, Math.PI * 2)
+        ctx.strokeStyle = `rgba(255,255,255,${alpha})`
+        ctx.lineWidth   = lw
+        ctx.stroke()
+        return true
+      })
+    }
+
+    function frame(now) {
+      const dt = Math.min(now - stateRef.current.lastNow, 40)
+      stateRef.current.lastNow = now
+      update(dt)
+      draw(now)
+      stateRef.current.raf = requestAnimationFrame(frame)
+    }
+    stateRef.current.raf = requestAnimationFrame(frame)
+
+    // Subscribe to real detection events dispatched by useDetectionStream
+    function onDetection(evt) { spawnFlare(evt.detail) }
+    window.addEventListener('apex:detection', onDetection)
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('resize', handleResize);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      particleSystemsRef.current.forEach((p) => {
-        p.geometry.dispose();
-        p.material.dispose();
-        scene.remove(p);
-      });
-      renderer.dispose();
-      if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement);
-    };
-  }, []);
+      window.removeEventListener('resize', resize)
+      window.removeEventListener('apex:detection', onDetection)
+      if (stateRef.current.raf) cancelAnimationFrame(stateRef.current.raf)
+    }
+  }, [])
 
   return (
-    <div
-      ref={containerRef}
+    <canvas
+      ref={canvasRef}
       style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none' }}
     />
-  );
-};
-
-export default ParticleBackground;
+  )
+}

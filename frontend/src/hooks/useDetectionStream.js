@@ -35,7 +35,12 @@ export function useDetectionStream(onDetection, { pollInterval = 5000 } = {}) {
         if (res.status === 401) return
         const data = await res.json()
         const list = Array.isArray(data) ? data : []
-        list.reverse().forEach(d => onDetection(d))
+        list.reverse().forEach(d => {
+          onDetection(d)
+          if (d.label !== 'normal') {
+            window.dispatchEvent(new CustomEvent('apex:detection', { detail: d }))
+          }
+        })
       } catch (_) {}
     }
     poll()
@@ -62,7 +67,13 @@ export function useDetectionStream(onDetection, { pollInterval = 5000 } = {}) {
         ws.onmessage = (evt) => {
           try {
             const msg = JSON.parse(evt.data)
-            if (msg.type === 'detection') onDetection(msg)
+            if (msg.type === 'detection') {
+              onDetection(msg)
+              // Fire global event so ParticleBackground can react to real detections
+              if (msg.label !== 'normal') {
+                window.dispatchEvent(new CustomEvent('apex:detection', { detail: msg }))
+              }
+            }
           } catch (_) {}
         }
 
