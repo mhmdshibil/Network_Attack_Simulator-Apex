@@ -100,6 +100,18 @@ export async function generateIncidentSummary(detection) {
   return res.json()
 }
 
+export async function enableDemo() {
+  const res = await apiFetch(`${API_BASE}/api/demo/enable`, { method: 'POST' })
+  if (!res.ok) throw new Error((await res.json()).detail || 'enable failed')
+  return res.json()
+}
+
+export async function disableDemo() {
+  const res = await apiFetch(`${API_BASE}/api/demo/disable`, { method: 'POST' })
+  if (!res.ok) throw new Error((await res.json()).detail || 'disable failed')
+  return res.json()
+}
+
 export async function triggerDemoAttack(attackType = null) {
   const params = attackType ? `?type=${encodeURIComponent(attackType)}` : ''
   const res = await apiFetch(`${API_BASE}/api/demo/trigger${params}`, { method: 'POST' })

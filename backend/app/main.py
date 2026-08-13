@@ -21,24 +21,23 @@ from backend.app.api.routes_incidents import router as incidents_router
 from backend.app.api.routes_auth import router as auth_router
 from backend.app.api.routes_demo import router as demo_router
 from backend.app.services.auto_attack import auto_attack_loop
-from backend.app.services.demo_mode import DEMO_MODE, demo_attack_loop
+from backend.app.services.demo_mode import DEMO_MODE, enable as demo_enable, disable as demo_disable
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    tasks = [asyncio.create_task(auto_attack_loop())]
+    aa_task = asyncio.create_task(auto_attack_loop())
     if DEMO_MODE:
-        tasks.append(asyncio.create_task(demo_attack_loop()))
+        await demo_enable()   # honours env var on boot; runtime toggle takes over after
     yield
-    for t in tasks:
-        t.cancel()
-    for t in tasks:
-        try:
-            await t
-        except asyncio.CancelledError:
-            pass
+    aa_task.cancel()
+    try:
+        await aa_task
+    except asyncio.CancelledError:
+        pass
+    await demo_disable()      # clean shutdown regardless of runtime state
 
 
 app = FastAPI(title="Network Attack Simulator API", lifespan=lifespan)
