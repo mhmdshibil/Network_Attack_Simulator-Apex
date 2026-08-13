@@ -19,20 +19,26 @@ from backend.app.api.routes_explain import router as explain_router
 from backend.app.api.routes_ws import router as ws_router
 from backend.app.api.routes_incidents import router as incidents_router
 from backend.app.api.routes_auth import router as auth_router
+from backend.app.api.routes_demo import router as demo_router
 from backend.app.services.auto_attack import auto_attack_loop
+from backend.app.services.demo_mode import DEMO_MODE, demo_attack_loop
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    task = asyncio.create_task(auto_attack_loop())
+    tasks = [asyncio.create_task(auto_attack_loop())]
+    if DEMO_MODE:
+        tasks.append(asyncio.create_task(demo_attack_loop()))
     yield
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
+    for t in tasks:
+        t.cancel()
+    for t in tasks:
+        try:
+            await t
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(title="Network Attack Simulator API", lifespan=lifespan)
@@ -60,6 +66,7 @@ app.include_router(auto_attack_router)
 app.include_router(explain_router)
 app.include_router(ws_router)
 app.include_router(incidents_router)
+app.include_router(demo_router)
 
 
 @app.get("/api/health")

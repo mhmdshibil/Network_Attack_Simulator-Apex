@@ -9,6 +9,7 @@ export function AuthProvider({ children }) {
   const [role, setRole] = useState(() => localStorage.getItem('apex_role') || null)
   const [authRequired, setAuthRequired] = useState(false)
   const [llmConfigured, setLlmConfigured] = useState(false)
+  const [demoMode, setDemoMode] = useState(false)
   const [loginError, setLoginError] = useState(null)
   const [showLogin, setShowLogin] = useState(false)
 
@@ -19,6 +20,7 @@ export function AuthProvider({ children }) {
       .then(d => {
         setAuthRequired(d.auth_enabled === true)
         setLlmConfigured(d.llm_configured === true)
+        setDemoMode(d.demo_mode === true)
         if (d.auth_enabled && !token) setShowLogin(true)
       })
       .catch(() => {})
@@ -65,7 +67,7 @@ export function AuthProvider({ children }) {
   }, [authRequired])
 
   return (
-    <AuthContext.Provider value={{ token, role, authRequired, llmConfigured, login, logout, loginError, showLogin, setShowLogin, onUnauthorized }}>
+    <AuthContext.Provider value={{ token, role, authRequired, llmConfigured, demoMode, login, logout, loginError, showLogin, setShowLogin, onUnauthorized }}>
       {children}
     </AuthContext.Provider>
   )

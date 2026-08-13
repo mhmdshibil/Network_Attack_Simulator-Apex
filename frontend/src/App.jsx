@@ -4,12 +4,13 @@ import ParticleBackground from './components/ParticleBackground'
 import UnifiedDashboard from './pages/UnifiedDashboard'
 import CursorEnergyField from './components/CursorEnergyField'
 import LoginModal from './components/LoginModal'
+import DemoPanel from './components/DemoPanel'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { setUnauthorizedHandler } from './api/api'
 
 function AppInner() {
   const [activeSection, setActiveSection] = useState('dashboard')
-  const { onUnauthorized, token, role, authRequired, logout } = useAuth()
+  const { onUnauthorized, token, role, authRequired, demoMode, logout } = useAuth()
 
   useEffect(() => {
     setUnauthorizedHandler(onUnauthorized)
@@ -31,6 +32,7 @@ function AppInner() {
     <>
       <ParticleBackground />
       <LoginModal />
+      {demoMode && <DemoPanel />}
       <div className="layout">
         <Sidebar
           activeSection={activeSection}

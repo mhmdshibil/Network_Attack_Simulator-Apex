@@ -100,4 +100,16 @@ export async function generateIncidentSummary(detection) {
   return res.json()
 }
 
+export async function triggerDemoAttack(attackType = null) {
+  const params = attackType ? `?type=${encodeURIComponent(attackType)}` : ''
+  const res = await apiFetch(`${API_BASE}/api/demo/trigger${params}`, { method: 'POST' })
+  if (!res.ok) throw new Error((await res.json()).detail || 'trigger failed')
+  return res.json()
+}
+
+export async function fetchDemoStatus() {
+  const res = await apiFetch(`${API_BASE}/api/demo/status`)
+  return res.json()
+}
+
 export { API_BASE }

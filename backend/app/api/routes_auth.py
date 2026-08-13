@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from backend.app.core.auth import authenticate_user, create_access_token, TOKEN_EXPIRE_MINUTES, AUTH_ENABLED
+from backend.app.services.demo_mode import DEMO_MODE
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -42,4 +43,5 @@ def auth_status():
     return {
         "auth_enabled": AUTH_ENABLED,
         "llm_configured": bool(os.getenv("ANTHROPIC_API_KEY", "").strip()),
+        "demo_mode": DEMO_MODE,
     }
