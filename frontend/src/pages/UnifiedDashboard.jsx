@@ -5,6 +5,8 @@ import DetectedAttacks from './DetectedAttacks'
 import RiskAnalysis from './RiskAnalysis'
 import AttackAnalytics from './AttackAnalytics'
 import BlockedIPs from './BlockedIPs'
+import NetworkMap from './NetworkMap'
+import Roadmap from './Roadmap'
 
 const sections = {
   dashboard:         { component: Dashboard },
@@ -13,6 +15,8 @@ const sections = {
   'risk-analysis':   { component: RiskAnalysis },
   'attack-analytics':{ component: AttackAnalytics },
   'blocked-ips':     { component: BlockedIPs },
+  'network-map':     { component: NetworkMap },
+  'roadmap':         { component: Roadmap },
 }
 
 function UnifiedDashboard({ activeSection }) {

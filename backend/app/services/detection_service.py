@@ -26,6 +26,14 @@ from backend.app.core.paths import DETECTIONS_FILE
 
 import random
 
+# Optional PostgreSQL/SQLite sink (Phase 2). Guarded so the app still runs and
+# detects when the DB deps are not installed — CSV/JSONL remain the fallback.
+try:
+    from backend.app.core import database as _db
+except Exception as _db_exc:  # pragma: no cover
+    _db = None
+    print(f"[DB] database layer unavailable ({_db_exc}); using CSV/JSONL only")
+
 _EXTERNAL_FIRST_OCTETS = [45, 80, 89, 91, 103, 146, 185, 194, 198, 222]
 
 
@@ -144,6 +152,14 @@ class DetectionEngine:
                 shap_top3 = []
                 print(f"[SHAP] Error: {shap_err}")
 
+            # Passthrough: carry target_zone (mode of the group) if present so it
+            # survives to the WebSocket broadcast for NetworkMap.jsx.
+            if "target_zone" in ip_group.columns:
+                tz_vals = ip_group["target_zone"].dropna()
+                target_zone = tz_vals.mode().iloc[0] if not tz_vals.empty else None
+            else:
+                target_zone = None
+
             mitre = get_mitre(label)
             detection = {
                 "ip": alert_ip,
@@ -154,12 +170,32 @@ class DetectionEngine:
                 "confidence": round(confidence, 3),
                 "rf_label": ip_group["rf_label"].value_counts().index[0],
                 "if_anomalous": bool(ip_group["if_anomalous"].any()),
+                "target_zone": target_zone,
                 "shap_top3": shap_top3,
                 "mitre": mitre,
             }
 
+            # Threat-intel enrichment (threat_score + possible BLOCK escalation)
+            self._enrich_threat_intel(detection)
+            action = detection["action"]
+
             detections.append(detection)
-            self._log_detection(detection)
+            self._log_detection(detection)          # CSV (primary/fallback)
+
+            # Dual-write to DB (non-blocking, guarded — CSV is the fallback)
+            if _db is not None:
+                _db.save_detection_safe(
+                    ip=alert_ip, timestamp=timestamp, label=label, action=detection["action"],
+                    risk_score=detection["risk_score"], confidence=confidence,
+                    target_zone=target_zone,
+                    packets_per_second=float(representative_row.get("packets_per_second", 0) or 0),
+                    avg_request_rate=float(representative_row.get("avg_request_rate", 0) or 0),
+                    failed_connections=representative_row.get("failed_connections"),
+                    unique_ports=representative_row.get("unique_ports"),
+                    mitre_tactic=(mitre or {}).get("tactic"),
+                    mitre_technique=(mitre or {}).get("technique_id"),
+                    sensor_mode="auto",
+                )
 
             # Broadcast to WebSocket clients
             ws_manager.broadcast_sync({
@@ -174,6 +210,154 @@ class DetectionEngine:
             )
 
         return detections
+
+    def process_features(
+        self,
+        *,
+        source_ip: str,
+        packets_per_second: float,
+        avg_request_rate: float,
+        failed_connections: float,
+        unique_ports: float,
+        target_zone: str | None = None,
+        timestamp: str | None = None,
+        sensor_mode: str = "demo",
+    ) -> dict:
+        """
+        Run the detection pipeline on a single externally-supplied feature window
+        (e.g. from sensor_agent.py via POST /api/detections).
+
+        Reuses the same model, response engine, SHAP, MITRE, logging and
+        WebSocket broadcast as run_once — only the feature source differs, and
+        the caller's real source_ip is preserved (not randomised). Attacks are
+        logged + broadcast (with target_zone); normal traffic is returned only.
+        """
+        ts = timestamp or datetime.now(timezone.utc).isoformat()
+
+        X = pd.DataFrame(
+            [[packets_per_second, avg_request_rate, failed_connections, unique_ports]],
+            columns=FEATURE_COLUMNS,
+        )
+
+        # ── Random Forest + Isolation Forest (same as run_once) ─────────────
+        rf_label = predict(self.model, X)[0]
+        probas = predict_proba(self.model, X)
+        rf_conf = float(probas.max(axis=1)[0]) if probas is not None else 0.6
+        anomalous = bool(is_anomalous(self.anomaly_model, X)[0])
+        score = float(anomaly_score(self.anomaly_model, X)[0])
+
+        # ── Resolve final label (identical rule to run_once._resolve) ───────
+        if rf_label != "normal":
+            label, confidence = rf_label, rf_conf
+        elif anomalous:
+            label, confidence = "unknown_anomaly", min(score * 1.5, 0.75)
+        else:
+            label, confidence = "normal", 0.0
+
+        risk_score = round(min(confidence * 100, 99.0), 1)
+        severity = _confidence_to_severity(confidence)
+
+        result = evaluate_and_respond(
+            ip=source_ip,
+            risk_score=risk_score,
+            confidence=confidence,
+            severity=severity,
+            attack_count=1,
+            window="5s",
+        )
+        decision = result["decision"]
+        action = _DECISION_TO_ACTION.get(decision, decision.lower())
+
+        # ── SHAP — only for real detections ─────────────────────────────────
+        shap_top3 = []
+        if label != "normal":
+            shap_label = label if label in self.classes_ else rf_label
+            try:
+                shap_top3 = explain_row(self.model, X.iloc[0], shap_label)
+                store_explanation(source_ip, ts, label, shap_top3)
+            except Exception as shap_err:
+                print(f"[SHAP] Error: {shap_err}")
+
+        detection = {
+            "ip": source_ip,
+            "timestamp": ts,
+            "label": label,
+            "action": action,
+            "risk_score": result.get("risk_score", risk_score),
+            "confidence": round(confidence, 3),
+            "rf_label": rf_label,
+            "if_anomalous": anomalous,
+            "target_zone": target_zone,
+            "shap_top3": shap_top3,
+            "mitre": get_mitre(label),
+        }
+
+        # Persist + broadcast only actual detections (attacks), like run_once.
+        if label != "normal":
+            # Threat-intel enrichment (threat_score + possible BLOCK escalation)
+            self._enrich_threat_intel(detection)
+            action = detection["action"]
+
+            self._log_detection(detection)          # CSV (primary/fallback)
+
+            # Dual-write to DB (non-blocking, guarded — CSV is the fallback)
+            if _db is not None:
+                _db.save_detection_safe(
+                    ip=source_ip, timestamp=ts, label=label, action=detection["action"],
+                    risk_score=detection["risk_score"], confidence=confidence,
+                    target_zone=target_zone,
+                    packets_per_second=packets_per_second,
+                    avg_request_rate=avg_request_rate,
+                    failed_connections=failed_connections,
+                    unique_ports=unique_ports,
+                    mitre_tactic=(detection["mitre"] or {}).get("tactic"),
+                    mitre_technique=(detection["mitre"] or {}).get("technique_id"),
+                    sensor_mode=sensor_mode,
+                )
+
+            ws_manager.broadcast_sync({
+                "type": "detection",
+                **{k: v for k, v in detection.items() if k != "shap_top3"},
+            })
+            print(
+                f"[INGEST] {action.upper()} — {label} from {source_ip} "
+                f"(risk={risk_score:.0f}, conf={confidence:.2f}, zone={target_zone})"
+            )
+
+        return detection
+
+    def _enrich_threat_intel(self, detection: dict) -> None:
+        """
+        Attach threat_score to a detection and escalate to BLOCK when > 80.
+
+        Reads the TI cache synchronously (DB only, no network) so the score can
+        ride along in the same WebSocket broadcast, then fires a non-blocking
+        live refresh so the next detection for this IP is enriched. Fully
+        guarded — TI/DB failures never break a detection.
+        """
+        detection.setdefault("threat_score", None)
+        if _db is None:
+            return
+        ip = detection.get("ip")
+        try:
+            from backend.app.services.threat_intel_service import service as ti
+        except Exception:
+            return
+        try:
+            cached = _db.run_async(_db.get_ip_reputation(ip), timeout=3)
+        except Exception:
+            cached = None
+        if cached:
+            score = ti.compute_threat_score(
+                cached.get("abuse_score"), cached.get("vt_malicious"), cached.get("is_known_bad"))
+            detection["threat_score"] = score
+            if score is not None and score > 80:
+                detection["action"] = "blocked"   # override decide_action regardless of attack_count
+        # Fire-and-forget live refresh (updates the cache for next time).
+        try:
+            _db.run_async_bg(ti.check_ip(ip))
+        except Exception:
+            pass
 
     def _log_detection(self, detection: dict):
         # Write the 5 core columns that all analytics routes expect

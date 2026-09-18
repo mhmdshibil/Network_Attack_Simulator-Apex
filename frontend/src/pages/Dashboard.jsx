@@ -1,9 +1,9 @@
 import React, { useRef, useEffect, useState } from 'react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { AlertCircle, Shield, AlertTriangle, Activity, Eye, Globe } from 'lucide-react'
+import { AlertCircle, Shield, AlertTriangle, Activity, Eye, Globe, FileDown } from 'lucide-react'
 import { useCursorPhysics } from '../hooks/useCursorPhysics'
 import { useCountUp } from '../hooks/useCountUp'
-import { fetchHealth, fetchMetrics, fetchTimeline, fetchAlerts } from '../api/api'
+import { fetchHealth, fetchMetrics, fetchTimeline, fetchAlerts, API_BASE } from '../api/api'
 
 /* Monochrome tokens */
 const T = {
@@ -74,8 +74,35 @@ function Dashboard() {
   const [timelineData, setTimelineData] = useState([])
   const [alertsData, setAlertsData]     = useState([])
   const [isOffline, setIsOffline]       = useState(false)
+  const [downloading, setDownloading]   = useState(false)
+  const [reportError, setReportError]   = useState(null)
   const cardRefs = useRef([])
   const { getInfluence } = useCursorPhysics()
+
+  const handleDownloadReport = async () => {
+    setDownloading(true)
+    setReportError(null)
+    try {
+      const token = localStorage.getItem('apex_token')
+      const res = await fetch(`${API_BASE}/api/reports/weekly`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) throw new Error(`Report failed (${res.status})`)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `apex_report_${new Date().toISOString().slice(0, 10)}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setReportError(err.message || 'Download failed')
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   const countDetections = useCountUp(typeof metricsData?.total_detections === 'number' ? metricsData.total_detections : null)
   const countRiskyIPs   = useCountUp(typeof metricsData?.unique_blocked_ips === 'number' ? metricsData.unique_blocked_ips : null)
@@ -137,6 +164,39 @@ function Dashboard() {
 
   return (
     <div>
+      {/* Header — title + weekly report download */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '16px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 600, color: T.dim, textTransform: 'uppercase', letterSpacing: '0.10em', marginBottom: '5px' }}>
+            Security Operations
+          </div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '22px', fontWeight: 700, color: T.text, letterSpacing: '-0.02em' }}>
+            Overview
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {reportError && (
+            <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.muted }}>
+              {reportError}
+            </span>
+          )}
+          <button
+            onClick={handleDownloadReport}
+            disabled={downloading}
+            className="time-btn"
+            style={{
+              display: 'flex', alignItems: 'center', gap: '7px',
+              padding: '8px 14px', textTransform: 'none', letterSpacing: '0.02em',
+              opacity: downloading ? 0.6 : 1,
+              cursor: downloading ? 'default' : 'pointer',
+            }}
+          >
+            <FileDown size={13} className={downloading ? 'spin' : ''} />
+            {downloading ? 'Generating…' : 'Download Weekly Report'}
+          </button>
+        </div>
+      </div>
+
       {isOffline && (
         <div className="demo-banner">
           <AlertCircle size={13} /> Backend offline — check API connection

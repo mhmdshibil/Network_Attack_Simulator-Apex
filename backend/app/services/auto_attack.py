@@ -11,6 +11,7 @@ Relative frequencies (attacks are rarer than normal traffic):
 """
 import asyncio
 import csv
+import os
 import random
 
 from backend.app.core.paths import BASE_DIR
@@ -23,6 +24,9 @@ from scripts.generate_sql_injection_attack import generate_sql_injection
 from scripts.generate_malware_traffic import generate_malware_traffic
 
 _enabled: bool = True
+
+# Traffic profile selector (additive — "default" preserves original behavior).
+TRAFFIC_PROFILE = os.getenv("TRAFFIC_PROFILE", "default").lower()
 
 _RAW_DIR = BASE_DIR / "data" / "raw"
 
@@ -48,32 +52,59 @@ def _write_csv(path, rows):
         w.writerows(rows)
 
 
+def _clear_raw_dir() -> None:
+    """Remove all generated attack/normal CSVs so no stale schema lingers."""
+    for p in _RAW_DIR.glob("*.csv"):
+        p.unlink()
+
+
+def _run_college_cycle() -> None:
+    """Write a single college-profile window (10-column schema incl. target_zone)."""
+    from scripts.college_profile import CollegeNetworkProfile
+
+    profile = CollegeNetworkProfile()
+    rows = profile.generate_window()
+    path = _RAW_DIR / "college_traffic.csv"
+    with open(path, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(CollegeNetworkProfile.TRAFFIC_HEADER)
+        w.writerows(rows)
+
+
 def _run_cycle() -> int:
     from backend.app.services.detection_service import DetectionEngine
 
     _RAW_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Always write normal traffic
-    _write_csv(_RAW_DIR / "normal_traffic.csv", generate_normal_traffic(n=60))
+    if TRAFFIC_PROFILE == "college":
+        # College profile owns the whole window; clear stale files first so the
+        # raw dir holds only the 10-column college schema.
+        _clear_raw_dir()
+        _run_college_cycle()
+    else:
+        # Default behavior (unchanged).
+        # Always write normal traffic
+        _write_csv(_RAW_DIR / "normal_traffic.csv", generate_normal_traffic(n=60))
 
-    # Pick one attack type per cycle (weighted random)
-    population = [g for g in _ATTACK_GENERATORS]
-    weights = [g[3] for g in population]
-    fn, kwargs, filename, _ = random.choices(population, weights=weights, k=1)[0]
-    _write_csv(_RAW_DIR / filename, fn(**kwargs))
+        # Pick one attack type per cycle (weighted random)
+        population = [g for g in _ATTACK_GENERATORS]
+        weights = [g[3] for g in population]
+        fn, kwargs, filename, _ = random.choices(population, weights=weights, k=1)[0]
+        _write_csv(_RAW_DIR / filename, fn(**kwargs))
 
-    # Remove stale files from other attack types so they don't persist
-    for _, _, fname, _ in _ATTACK_GENERATORS:
-        if fname != filename:
-            p = _RAW_DIR / fname
-            if p.exists():
-                p.unlink()
+        # Remove stale files from other attack types so they don't persist
+        for _, _, fname, _ in _ATTACK_GENERATORS:
+            if fname != filename:
+                p = _RAW_DIR / fname
+                if p.exists():
+                    p.unlink()
 
     detections = DetectionEngine().run_once()
     return len(detections)
 
 
 async def auto_attack_loop() -> None:
+    print(f"[AUTO] Traffic profile: {TRAFFIC_PROFILE}")
     while True:
         if _enabled:
             try:

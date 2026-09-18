@@ -4,14 +4,27 @@
 # By centralizing these attack-focused routes, the module offers a clear and organized interface for
 # interacting with the core security functions of the application.
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 import pandas as pd
 from backend.app.services.detection_service import DetectionEngine
 from backend.app.core.paths import DETECTIONS_FILE
 from backend.app.ml.mitre_mapping import enrich
 from backend.app.core.auth import require_analyst, require_admin
+from backend.app.schemas.detection import FeatureWindowIn
 
 router = APIRouter(prefix="/api", tags=["attacks"])
+
+# Cached engine for the ingest endpoint. A window may arrive every few seconds
+# (one POST per source IP), so we load the pickled models once and reuse them
+# rather than paying the load cost on every request.
+_ingest_engine: DetectionEngine | None = None
+
+
+def _get_ingest_engine() -> DetectionEngine:
+    global _ingest_engine
+    if _ingest_engine is None:
+        _ingest_engine = DetectionEngine()
+    return _ingest_engine
 
 
 @router.get("/detections")
@@ -53,6 +66,47 @@ def get_detections(limit: int = 50, _: dict = Depends(require_analyst)):
 
     records = df.tail(limit).to_dict(orient="records")
     return [enrich(r) for r in records]
+
+@router.post("/detections")
+def ingest_detection(payload: FeatureWindowIn, _: dict = Depends(require_analyst)):
+    """
+    Ingest a single aggregated feature window (e.g. from sensor_agent.py), run it
+    through the existing detection engine, and — for attacks — log it and
+    broadcast it over WebSocket (including target_zone for the Network Map).
+
+    The four feature fields are validated by the FeatureWindowIn schema, so
+    missing/non-numeric input returns 422 automatically. Processing failures
+    return 500 with a message.
+
+    Returns:
+        dict: {status, detection_id, label, action, target_zone}
+    """
+    try:
+        engine = _get_ingest_engine()
+        detection = engine.process_features(
+            source_ip=payload.source_ip,
+            packets_per_second=payload.packets_per_second,
+            avg_request_rate=payload.avg_request_rate,
+            failed_connections=payload.failed_connections,
+            unique_ports=payload.unique_ports,
+            target_zone=payload.target_zone,
+            timestamp=payload.window_start,
+            sensor_mode=payload.sensor_mode or "demo",
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"detection processing failed: {exc}",
+        )
+
+    return {
+        "status": "processed",
+        "detection_id": f"{detection['ip']}:{detection['timestamp']}",
+        "label": detection["label"],
+        "action": detection["action"],
+        "target_zone": detection.get("target_zone"),
+    }
+
 
 @router.post("/detect/run")
 def run_detection(_: dict = Depends(require_admin)):

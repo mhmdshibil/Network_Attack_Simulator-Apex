@@ -144,3 +144,14 @@ websocket-client==1.8.0
 wheel==0.45.1
 wsproto==1.2.0
 zstandard @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_a5_i6g4o6n/croot/zstandard_1731356352787/work
+
+# ── Apex-Kinetics feature dependencies ───────────────────────────────────────
+reportlab           # PDF weekly threat report — GET /api/reports/weekly
+pyshark             # optional — only needed for SENSOR_MODE=real (live capture)
+
+# ── Phase 2 — PostgreSQL storage + threat intel ──────────────────────────────
+sqlalchemy>=2.0     # async ORM
+asyncpg             # PostgreSQL async driver (production)
+aiosqlite           # SQLite async driver (local dev default)
+alembic             # database migrations
+httpx               # async HTTP client for threat-intel APIs

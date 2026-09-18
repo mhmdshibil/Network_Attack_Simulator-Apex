@@ -6,9 +6,23 @@
  */
 import React, { useCallback, useState, useRef } from 'react'
 import { AlertTriangle, X, Zap, Brain } from 'lucide-react'
-import { fetchDetections, fetchExplanation, generateIncidentSummary } from '../api/api'
+import { fetchDetections, fetchExplanation, generateIncidentSummary, API_BASE } from '../api/api'
 import { useDetectionStream } from '../hooks/useDetectionStream'
 import { useAuth } from '../context/AuthContext'
+
+/* Threat-intel badge colours (explicit hue exception, like NetworkMap):
+   0-30 gray (unknown) · 31-70 yellow (suspicious) · 71-100 red (known bad) */
+function tiBadge(score) {
+  if (score == null) return null
+  if (score >= 71) return { bg: 'rgba(255,51,51,0.14)',  border: 'rgba(255,51,51,0.45)',  color: '#ff8080' }
+  if (score >= 31) return { bg: 'rgba(255,204,51,0.12)', border: 'rgba(255,204,51,0.40)', color: '#ffe08a' }
+  return { bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.60)' }
+}
+
+function authFetch(url) {
+  const token = localStorage.getItem('apex_token')
+  return fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+}
 
 const T = {
   bg:     '#000000',
@@ -240,6 +254,8 @@ function DetectedAttacks() {
   const [attacks, setAttacks] = useState([])
   const [selected, setSelected] = useState(null)
   const [wsConnected, setWsConnected] = useState(false)
+  const [tiEnabled, setTiEnabled] = useState(null)   // null=unknown, false=no keys
+  const [tiPopover, setTiPopover] = useState(null)   // { ip, x, y, loading, data }
   const seenRef = useRef(new Set())
 
   React.useEffect(() => {
@@ -249,6 +265,23 @@ function DetectedAttacks() {
       setAttacks(list.slice(0, MAX_ROWS))
     }).catch(() => {})
   }, [])
+
+  // Is threat-intel configured? (drives the "TI: OFF" state)
+  React.useEffect(() => {
+    authFetch(`${API_BASE}/api/threat-intel/stats`)
+      .then(r => r.json())
+      .then(d => setTiEnabled(!!d.configured))
+      .catch(() => setTiEnabled(false))
+  }, [])
+
+  const openTI = (ip, e) => {
+    e.stopPropagation()
+    setTiPopover({ ip, x: Math.min(e.clientX, window.innerWidth - 300), y: e.clientY + 12, loading: true, data: null })
+    authFetch(`${API_BASE}/api/threat-intel/${ip}`)
+      .then(r => r.json())
+      .then(data => setTiPopover(p => (p && p.ip === ip ? { ...p, loading: false, data } : p)))
+      .catch(() => setTiPopover(p => (p && p.ip === ip ? { ...p, loading: false, data: { error: 'lookup failed' } } : p)))
+  }
 
   const onDetection = useCallback((d) => {
     const key = d.ip + d.timestamp
@@ -297,6 +330,7 @@ function DetectedAttacks() {
                 <th>Attack Type</th>
                 <th>MITRE</th>
                 <th>Confidence</th>
+                <th>TI Score</th>
                 <th>Action</th>
                 <th>IF</th>
               </tr>
@@ -344,6 +378,30 @@ function DetectedAttacks() {
                       {attack.confidence != null ? `${(attack.confidence * 100).toFixed(0)}%` : '—'}
                     </td>
                     <td>
+                      {tiEnabled === false ? (
+                        <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '9px', color: 'rgba(255,255,255,0.35)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', padding: '3px 7px', letterSpacing: '0.04em' }}>
+                          TI: OFF
+                        </span>
+                      ) : (() => {
+                        const tb = tiBadge(attack.threat_score)
+                        if (!tb) return <span style={{ color: 'rgba(255,255,255,0.25)', fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px' }}>—</span>
+                        return (
+                          <span
+                            onClick={(e) => openTI(attack.ip, e)}
+                            title="Click for threat-intel details"
+                            style={{
+                              background: tb.bg, color: tb.color, border: `1px solid ${tb.border}`,
+                              padding: '3px 9px', borderRadius: '6px', cursor: 'pointer',
+                              fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 700,
+                              letterSpacing: '0.04em',
+                            }}
+                          >
+                            {attack.threat_score}
+                          </span>
+                        )
+                      })()}
+                    </td>
+                    <td>
                       <span style={{
                         background: ab.bg, color: ab.color, border: `1px solid ${ab.border}`,
                         padding: '3px 9px', borderRadius: '6px',
@@ -373,6 +431,47 @@ function DetectedAttacks() {
       </div>
 
       <ExplainDrawer row={selected} onClose={() => setSelected(null)} />
+
+      {/* Threat-intel popover */}
+      {tiPopover && (
+        <>
+          <div onClick={() => setTiPopover(null)} style={{ position: 'fixed', inset: 0, zIndex: 1100 }} />
+          <div style={{
+            position: 'fixed', left: tiPopover.x, top: tiPopover.y, width: '280px', zIndex: 1101,
+            background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.16)', borderRadius: '12px',
+            padding: '14px 16px', boxShadow: '0 8px 32px rgba(0,0,0,0.8)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '9px', color: T.dim, textTransform: 'uppercase', letterSpacing: '0.10em' }}>Threat Intel</span>
+              <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', color: T.text, fontWeight: 600 }}>{tiPopover.ip}</span>
+            </div>
+            {tiPopover.loading && (
+              <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: T.dim }}>Looking up…</div>
+            )}
+            {!tiPopover.loading && tiPopover.data && !tiPopover.data.error && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+                {[
+                  ['Threat score', tiPopover.data.threat_score],
+                  ['Known bad', tiPopover.data.is_known_bad ? 'YES' : 'no'],
+                  ['AbuseIPDB', tiPopover.data.abuse_confidence != null ? `${tiPopover.data.abuse_confidence}%` : '—'],
+                  ['VirusTotal', tiPopover.data.vt_malicious_count != null ? `${tiPopover.data.vt_malicious_count} malicious` : '—'],
+                  ['Country', tiPopover.data.country_code || '—'],
+                  ['ISP', tiPopover.data.isp || '—'],
+                  ['Source', tiPopover.data.source || '—'],
+                ].map(([k, v]) => (
+                  <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px' }}>
+                    <span style={{ color: T.dim }}>{k}</span>
+                    <span style={{ color: T.text, fontWeight: 600, textAlign: 'right' }}>{String(v)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!tiPopover.loading && tiPopover.data?.error && (
+              <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: T.dim }}>{tiPopover.data.error}</div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }

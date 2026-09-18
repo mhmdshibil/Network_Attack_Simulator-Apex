@@ -72,11 +72,43 @@ docker compose up --build -d
 
 Everything is running. The auto-attack loop starts immediately and generates detections every 8–12 seconds. Open the dashboard to watch alerts arrive in real time.
 
+**Python dependencies.** The core stack installs from `requirements.txt`. Two feature dependencies:
+
+```bash
+pip install reportlab      # required for the weekly PDF report (GET /api/reports/weekly)
+pip install pyshark        # OPTIONAL — only for the sensor agent's SENSOR_MODE=real
+```
+
+`pyshark` is not needed for demo mode or normal operation — install it only if you run `sensor_agent.py` with `SENSOR_MODE=real` (which also needs `tshark`/Wireshark and root/CAP_NET_RAW).
+
 ---
 
 ## Local development
 
 See [SETUP.md](SETUP.md) for the full step-by-step guide including Python environment, model training, and optional integrations.
+
+---
+
+## Database & migrations (Phase 2)
+
+PostgreSQL is the primary store; **CSV/JSONL remain the fallback** — every DB write is fire-and-forget and guarded, so the system works with or without PostgreSQL (and even without the DB packages installed).
+
+- **Local dev (zero setup):** leave `DATABASE_URL` unset or use the SQLite async URL — tables are auto-created on startup:
+  ```bash
+  export DATABASE_URL=sqlite+aiosqlite:///./apex.db
+  ```
+- **PostgreSQL (Docker):** `docker compose up` starts a `postgres:16-alpine` service and the backend waits for it (`depends_on … service_healthy`). The backend uses `postgresql+asyncpg://apex:apexpass@postgres:5432/apex`.
+
+**Migrations (Alembic):**
+```bash
+pip install alembic asyncpg aiosqlite   # if not already installed
+export DATABASE_URL=postgresql+asyncpg://apex:apexpass@localhost:5432/apex
+alembic upgrade head          # apply the initial schema (detections, audit_events, ip_reputation)
+# create a new migration after changing models:
+alembic revision --autogenerate -m "describe change"
+```
+
+Startup also calls `create_all_tables()` (idempotent) so SQLite/dev works without running Alembic; use Alembic for versioned PostgreSQL schema changes in production.
 
 ---
 
@@ -194,6 +226,29 @@ docker compose --profile wazuh up -d
 ```
 
 **LLM summaries** — set `ANTHROPIC_API_KEY` in `.env`. Uses `claude-haiku-4-5` with a structured SOC-analyst prompt. Results are cached in `data/processed/incident_summaries.jsonl`.
+
+**Threat Intelligence** — every detected IP is cross-referenced against AbuseIPDB, VirusTotal, and a local blocklist (Phase 2). Set `ABUSEIPDB_API_KEY` and/or `VIRUSTOTAL_API_KEY` in `.env` (both free). Results are cached 24h in the `ip_reputation` table; a `threat_score` (AbuseIPDB×0.6 + VirusTotal×0.4) rides along in the detection stream, `threat_score > 80` escalates the action to BLOCK, and the Detected Attacks page shows a clickable **TI Score** badge. Without any key the service falls back to the local CIDR blocklist and the badge shows `TI: OFF`. Endpoints: `GET /api/threat-intel/{ip}` and `GET /api/threat-intel/stats`.
+
+**Sensor Agent** — `sensor_agent.py` is a standalone bridge between the simulation and a real network. It builds 5-second feature windows (one record per source IP with the four ML features) and POSTs them to the backend. Run it alongside the API:
+
+```bash
+# Demo mode (default) — replays the synthetic generators, no privileges needed
+python sensor_agent.py
+
+# Real mode — live packet capture (needs pyshark + tshark and root/CAP_NET_RAW)
+SENSOR_MODE=real SENSOR_INTERFACE=eth0 sudo -E python sensor_agent.py
+```
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SENSOR_MODE` | `demo` | `demo` replays synthetic generators; `real` captures live packets |
+| `SENSOR_INTERFACE` | `eth0` | Network interface to sniff (real mode only) |
+| `BACKEND_URL` | `http://localhost:8000` | Backend the agent POSTs windows to |
+| `SENSOR_INTERVAL` | `5` | Window length in seconds |
+
+**Demo vs. real.** Demo mode imports the generators in `scripts/`, aggregates a window, and logs `[DEMO] Sending synthetic window: …` — useful for exercising the ingest path with zero setup. Real mode uses `pyshark` to sniff `SENSOR_INTERFACE`, derives `packets_per_second`, `avg_request_rate` (TCP SYN rate), `failed_connections` (TCP RST + ICMP unreachable), and `unique_ports` per source IP, and logs `[REAL] Captured … packets …`. Both modes shut down cleanly on Ctrl+C and never crash on a transient backend outage — they log and retry on the next interval.
+
+> **Production deployment.** Real mode opens a raw capture socket, so it must run with root privileges or the `CAP_NET_RAW` capability (`sudo setcap cap_net_raw+ep $(which python)` for a rootless setup). It also needs `tshark`/Wireshark installed on the host. Deploy one agent per monitored subnet/SPAN port, pointed at a shared `BACKEND_URL`. The agent posts one record per source IP to `POST /api/detections`; each window is scored by the detection engine and, if it's an attack, logged and broadcast over WebSocket (including `target_zone`).
 
 ---
 

@@ -57,16 +57,31 @@ def aggregate_by_time_window(df: pd.DataFrame, window_seconds: int = 5) -> pd.Da
     # Set the timestamp as the index of the DataFrame.
     df.set_index("timestamp", inplace=True)
 
-    # Group the data by time window and source IP, and aggregate the features.
-    agg = df.groupby(
-        [pd.Grouper(freq=f"{window_seconds}s"), "source_ip"]
-    ).agg(
+    # Named aggregations for the core features + label.
+    agg_kwargs = dict(
         packets_per_second=("packet_count", "sum"),
         avg_request_rate=("request_rate", "mean"),
         failed_connections=("success_flag", lambda x: (~x).sum()),
         unique_ports=("destination_port", "nunique"),
-        label=("label", "first")
-    ).reset_index()
+        label=("label", "first"),
+    )
+
+    # Passthrough: carry target_zone (most common value per window per IP) when
+    # the raw data provides it (e.g. college_profile.py). Absent → None column.
+    has_target_zone = "target_zone" in df.columns
+    if has_target_zone:
+        agg_kwargs["target_zone"] = (
+            "target_zone",
+            lambda s: s.mode().iloc[0] if not s.mode().empty else None,
+        )
+
+    # Group the data by time window and source IP, and aggregate the features.
+    agg = df.groupby(
+        [pd.Grouper(freq=f"{window_seconds}s"), "source_ip"]
+    ).agg(**agg_kwargs).reset_index()
+
+    if not has_target_zone:
+        agg["target_zone"] = None
 
     # Return the aggregated DataFrame.
     return agg

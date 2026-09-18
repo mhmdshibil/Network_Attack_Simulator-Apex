@@ -18,3 +18,32 @@
 #     label: str
 #     action: str
 #
+from typing import Optional
+
+from pydantic import BaseModel
+
+
+class FeatureWindowIn(BaseModel):
+    """
+    A single aggregated feature window POSTed to /api/detections by a sensor
+    (see sensor_agent.py). The four feature fields are required and numeric —
+    FastAPI returns 422 automatically if any is missing or non-numeric.
+    """
+    source_ip: str
+    packets_per_second: float
+    avg_request_rate: float
+    failed_connections: float
+    unique_ports: float
+    target_zone: Optional[str] = None   # optional — carried through to the WS broadcast
+    window_start: Optional[str] = None  # optional ISO timestamp of the window
+    sensor_mode: Optional[str] = None   # optional — "demo" | "real"
+
+
+class IngestResult(BaseModel):
+    """Response for a processed feature window."""
+    status: str
+    detection_id: str
+    label: str
+    action: str
+    target_zone: Optional[str] = None
+

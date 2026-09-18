@@ -20,6 +20,8 @@ from backend.app.api.routes_ws import router as ws_router
 from backend.app.api.routes_incidents import router as incidents_router
 from backend.app.api.routes_auth import router as auth_router
 from backend.app.api.routes_demo import router as demo_router
+from backend.app.api.reports import router as reports_router
+from backend.app.api.routes_threat_intel import router as threat_intel_router
 from backend.app.services.auto_attack import auto_attack_loop
 from backend.app.services.demo_mode import DEMO_MODE, enable as demo_enable, disable as demo_disable
 
@@ -31,6 +33,16 @@ async def lifespan(app: FastAPI):
     aa_task = asyncio.create_task(auto_attack_loop())
     if DEMO_MODE:
         await demo_enable()   # honours env var on boot; runtime toggle takes over after
+
+    # Phase 2 — create DB tables if the DB layer is available (guarded so a
+    # missing DB dependency never blocks startup; CSV/JSONL remain the sink).
+    try:
+        from backend.app.core.database import init_models
+        await init_models()
+        print("[DB] tables ready")
+    except Exception as db_exc:  # pragma: no cover
+        print(f"[DB] skipped table init ({db_exc}); using CSV/JSONL only")
+
     yield
     aa_task.cancel()
     try:
@@ -66,6 +78,8 @@ app.include_router(explain_router)
 app.include_router(ws_router)
 app.include_router(incidents_router)
 app.include_router(demo_router)
+app.include_router(reports_router)
+app.include_router(threat_intel_router)
 
 
 @app.get("/api/health")
