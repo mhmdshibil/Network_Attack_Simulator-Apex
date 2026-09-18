@@ -229,6 +229,32 @@ docker compose --profile wazuh up -d
 
 **Threat Intelligence** — every detected IP is cross-referenced against AbuseIPDB, VirusTotal, and a local blocklist (Phase 2). Set `ABUSEIPDB_API_KEY` and/or `VIRUSTOTAL_API_KEY` in `.env` (both free). Results are cached 24h in the `ip_reputation` table; a `threat_score` (AbuseIPDB×0.6 + VirusTotal×0.4) rides along in the detection stream, `threat_score > 80` escalates the action to BLOCK, and the Detected Attacks page shows a clickable **TI Score** badge. Without any key the service falls back to the local CIDR blocklist and the badge shows `TI: OFF`. Endpoints: `GET /api/threat-intel/{ip}` and `GET /api/threat-intel/stats`.
 
+**Notifications** — Apex-Kinetics fires Slack and email alerts when detections cross severity thresholds, with 5-minute IP-level deduplication and per-channel rate limits (10 Slack/min, 20 email/hr). All notification calls are fire-and-forget in daemon threads — they never block the detection pipeline.
+
+*Trigger conditions* (any one is sufficient):
+- `attack_type == malware` with confidence > 80%
+- `risk_score >= 90` (near-certain high-severity attack)
+- `attack_type == ddos` with confidence > 90%
+- IP newly added to the block list
+- 3+ detections from the same IP within 60 seconds (burst)
+
+*Slack setup* — Create an Incoming Webhook in your Slack workspace (Apps → Incoming Webhooks → Add to Slack), copy the webhook URL, and set `SLACK_WEBHOOK_URL` in `.env`. Messages use Block Kit with attack type, source IP, confidence, action taken, and MITRE technique.
+
+*Email setup (Gmail)* — Enable two-factor authentication on your Google account, go to `myaccount.google.com/apppasswords`, generate an App Password (select "Mail"), and set `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_USER`, `SMTP_PASS`, and `ALERT_EMAIL_TO` in `.env`. Any SMTP provider that supports STARTTLS on port 587 works the same way.
+
+Test command (requires admin role or `AUTH_ENABLED=false`):
+```bash
+curl -X POST http://localhost:8000/api/notifications/test \
+  -H "Content-Type: application/json" \
+  -d '{"channel":"all"}'
+```
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/notifications/config` | Check which channels are configured |
+| `POST /api/notifications/test` | Send a test notification (admin) |
+| `GET /api/notifications/log` | Last 50 notification events (in-memory) |
+
 **Sensor Agent** — `sensor_agent.py` is a standalone bridge between the simulation and a real network. It builds 5-second feature windows (one record per source IP with the four ML features) and POSTs them to the backend. Run it alongside the API:
 
 ```bash

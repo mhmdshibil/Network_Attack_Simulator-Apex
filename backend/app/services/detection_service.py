@@ -374,3 +374,22 @@ class DetectionEngine:
         else:
             DETECTIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
             row.to_csv(DETECTIONS_FILE, index=False)
+
+        # Auto-create triage case for every attack detection (non-blocking)
+        if _db is not None:
+            try:
+                _db.create_triage_case_safe(
+                    detection_id=f"{detection['ip']}:{detection['timestamp']}",
+                    ip=detection["ip"],
+                    label=detection["label"],
+                    risk_score=detection.get("risk_score", 0),
+                )
+            except Exception:
+                pass
+
+        # Notification triggers (Phase 3 / Task 3)
+        try:
+            from backend.app.services.notification_service import service as _notify
+            _notify.maybe_notify(detection)
+        except Exception:
+            pass

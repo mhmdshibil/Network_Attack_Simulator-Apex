@@ -6,6 +6,8 @@ import RiskAnalysis from './RiskAnalysis'
 import AttackAnalytics from './AttackAnalytics'
 import BlockedIPs from './BlockedIPs'
 import NetworkMap from './NetworkMap'
+import Triage from './Triage'
+import Compliance from './Compliance'
 import Roadmap from './Roadmap'
 
 const sections = {
@@ -16,6 +18,8 @@ const sections = {
   'attack-analytics':{ component: AttackAnalytics },
   'blocked-ips':     { component: BlockedIPs },
   'network-map':     { component: NetworkMap },
+  'triage':          { component: Triage },
+  'compliance':      { component: Compliance },
   'roadmap':         { component: Roadmap },
 }
 

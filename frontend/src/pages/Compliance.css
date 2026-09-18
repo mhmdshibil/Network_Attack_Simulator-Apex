@@ -1,0 +1,12 @@
+/* Compliance.css — Phase 3 / Task 2 */
+/* Minimal overrides — uses global table/panel classes plus local score animations */
+
+@keyframes compliance-score-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.75; }
+}
+
+/* Pulse only when score is non-compliant to draw attention */
+.compliance-score-alert {
+  animation: compliance-score-pulse 2s ease-in-out infinite;
+}

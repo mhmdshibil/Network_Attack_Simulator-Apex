@@ -21,10 +21,10 @@ import asyncio
 import os
 import threading
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Integer, JSON, String, func
+from sqlalchemy import Boolean, DateTime, Integer, JSON, String, func, select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -239,3 +239,168 @@ def save_audit_event_safe(event: dict) -> None:
         run_async_bg(save_audit_event(event))
     except Exception as exc:
         print(f"[DB] audit write skipped: {exc}")
+
+
+# ── Triage helpers (Phase 3 / Task 1) ───────────────────────────────────────
+
+def _sla_status(case) -> str:
+    """Compute SLA status from a TriageCase ORM row."""
+    if case.status in ("resolved", "false_positive"):
+        return "ok"
+    if case.sla_deadline is None:
+        return "ok"
+    now = datetime.now(timezone.utc)
+    deadline = _as_utc(case.sla_deadline)
+    if now > deadline:
+        return "breached"
+    created = _as_utc(case.created_at) if case.created_at else now
+    total = (deadline - created).total_seconds()
+    elapsed = (now - created).total_seconds()
+    if total > 0 and elapsed / total > 0.75:
+        return "warning"
+    return "ok"
+
+
+def _triage_to_dict(case) -> dict:
+    return {
+        "id": case.id,
+        "detection_id": case.detection_id,
+        "source_ip": case.source_ip,
+        "attack_type": case.attack_type,
+        "severity": case.severity,
+        "status": case.status,
+        "assigned_to": case.assigned_to,
+        "notes": case.notes,
+        "created_at":   _as_utc(case.created_at).isoformat()   if case.created_at   else None,
+        "updated_at":   _as_utc(case.updated_at).isoformat()   if case.updated_at   else None,
+        "resolved_at":  _as_utc(case.resolved_at).isoformat()  if case.resolved_at  else None,
+        "sla_deadline": _as_utc(case.sla_deadline).isoformat() if case.sla_deadline else None,
+        "sla_status": _sla_status(case),
+    }
+
+
+async def create_triage_case(**kw) -> dict:
+    from backend.app.models.triage_model import TriageCase, risk_to_severity, sla_hours
+    _, sm = _init_engine()
+    async with sm() as s:
+        risk = float(kw.get("risk_score") or 0)
+        severity = risk_to_severity(risk)
+        now = datetime.now(timezone.utc)
+        case = TriageCase(
+            detection_id=str(kw.get("detection_id") or ""),
+            source_ip=str(kw.get("ip") or ""),
+            attack_type=str(kw.get("label") or ""),
+            severity=severity,
+            status="open",
+            created_at=now,
+            updated_at=now,
+            sla_deadline=now + timedelta(hours=sla_hours(severity)),
+        )
+        s.add(case)
+        await s.commit()
+        await s.refresh(case)
+        return _triage_to_dict(case)
+
+
+async def get_triage_cases(
+    status: Optional[str] = None,
+    severity: Optional[str] = None,
+    assigned_to_me: bool = False,
+    username: Optional[str] = None,
+) -> list:
+    from backend.app.models.triage_model import TriageCase
+    _, sm = _init_engine()
+    async with sm() as s:
+        q = sa_select(TriageCase).order_by(TriageCase.created_at.desc())
+        if status:
+            q = q.where(TriageCase.status == status)
+        if severity:
+            q = q.where(TriageCase.severity == severity)
+        if assigned_to_me and username:
+            q = q.where(TriageCase.assigned_to == username)
+        result = await s.execute(q)
+        return [_triage_to_dict(row) for row in result.scalars().all()]
+
+
+async def get_triage_case(case_id: str) -> Optional[dict]:
+    from backend.app.models.triage_model import TriageCase
+    _, sm = _init_engine()
+    async with sm() as s:
+        case = await s.get(TriageCase, case_id)
+        return _triage_to_dict(case) if case else None
+
+
+async def update_triage_case(case_id: str, **updates) -> Optional[dict]:
+    from backend.app.models.triage_model import TriageCase
+    _, sm = _init_engine()
+    async with sm() as s:
+        case = await s.get(TriageCase, case_id)
+        if case is None:
+            return None
+        for key, value in updates.items():
+            if key == "resolved_at" and isinstance(value, str):
+                value = _parse_dt(value)
+            if hasattr(case, key):
+                setattr(case, key, value)
+        case.updated_at = datetime.now(timezone.utc)
+        await s.commit()
+        await s.refresh(case)
+        return _triage_to_dict(case)
+
+
+async def get_triage_stats() -> dict:
+    from backend.app.models.triage_model import TriageCase
+    _, sm = _init_engine()
+    now = datetime.now(timezone.utc)
+    week_ago = now - timedelta(days=7)
+    async with sm() as s:
+        result = await s.execute(sa_select(TriageCase))
+        all_cases = result.scalars().all()
+
+        total = len(all_cases)
+        open_cases = [c for c in all_cases if c.status == "open"]
+        by_severity = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        for c in open_cases:
+            if c.severity in by_severity:
+                by_severity[c.severity] += 1
+
+        breached = sum(1 for c in all_cases if _sla_status(c) == "breached")
+        with_deadline = [c for c in all_cases if c.sla_deadline]
+        sla_breach_rate = round(breached / len(with_deadline), 3) if with_deadline else 0.0
+
+        recent = [c for c in all_cases if c.created_at and _as_utc(c.created_at) >= week_ago]
+        resolved_recent = [
+            c for c in recent
+            if c.status in ("resolved", "false_positive") and c.resolved_at and c.created_at
+        ]
+        avg_res = None
+        if resolved_recent:
+            total_mins = sum(
+                (_as_utc(c.resolved_at) - _as_utc(c.created_at)).total_seconds() / 60
+                for c in resolved_recent
+            )
+            avg_res = round(total_mins / len(resolved_recent), 1)
+
+        fp = sum(1 for c in recent if c.status == "false_positive")
+        fp_rate = round(fp / len(recent), 3) if recent else 0.0
+        resolved_total = sum(1 for c in all_cases if c.status in ("resolved", "false_positive"))
+
+        return {
+            "by_severity": by_severity,
+            "open_count": len(open_cases),
+            "total_cases": total,
+            "resolved_cases": resolved_total,
+            "sla_breach_count": breached,
+            "sla_breach_rate": sla_breach_rate,
+            "avg_resolution_minutes": avg_res,
+            "false_positive_count": fp,
+            "false_positive_rate": fp_rate,
+        }
+
+
+def create_triage_case_safe(**kw) -> None:
+    """Non-blocking triage case creation. Never raises."""
+    try:
+        run_async_bg(create_triage_case(**kw))
+    except Exception as exc:
+        print(f"[TRIAGE] case creation skipped: {exc}")
