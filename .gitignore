@@ -29,6 +29,7 @@ data/audit/
 data/policies/ip_last_seen.json
 data/policies/ip_reputation.json
 data/policies/hard_blocked_ips.json
+data/policies/whitelist_ips.json
 
 # data/training/attack_dataset.csv  IS tracked (slow to regenerate)
 # models/*.pkl                      IS tracked (save CI retrain time)
