@@ -1,0 +1,88 @@
+# Production compose — use with docker-compose.prod.yml
+# Differences from dev docker-compose.yml:
+#   - Backend: gunicorn + 4 uvicorn workers (no --reload)
+#   - Frontend: nginx serving pre-built static assets
+#   - Resource limits on all services
+#   - No exposed debug ports for DB
+#   - All env vars read from .env (no inline defaults except fallbacks)
+#
+# Usage:
+#   cp .env.production.example .env
+#   docker compose -f docker-compose.prod.yml up -d --build
+
+version: "3.9"
+
+services:
+
+  # ── PostgreSQL ────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-apex}
+      POSTGRES_USER: ${POSTGRES_USER:-apex}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-apexpass}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-apex} -d ${POSTGRES_DB:-apex}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.25"
+
+  # ── Backend (gunicorn + uvicorn workers) ──────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend.prod
+    env_file: .env
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://apex:apexpass@postgres:5432/apex}
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.50"
+
+  # ── Frontend (nginx serving pre-built dist/) ──────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend.prod
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:8000}
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: "0.25"
+
+# ── Named volumes ─────────────────────────────────────────────────────────
+volumes:
+  postgres_data:

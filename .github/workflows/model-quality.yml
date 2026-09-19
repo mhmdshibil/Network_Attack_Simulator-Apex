@@ -1,0 +1,80 @@
+name: Model Quality Gate
+
+on:
+  push:
+    paths:
+      - "backend/app/ml/**"
+      - "scripts/generate_*.py"
+      - "scripts/org_profile.py"
+  pull_request:
+    paths:
+      - "backend/app/ml/**"
+      - "scripts/generate_*.py"
+      - "scripts/org_profile.py"
+
+jobs:
+  model-quality:
+    name: Retrain + Evaluate (accuracy ≥ 95%)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Rebuild dataset
+        run: python -m backend.app.ml.build_dataset
+
+      - name: Retrain Random Forest
+        run: python -m backend.app.ml.train_model
+
+      - name: Retrain Isolation Forest
+        run: python -m backend.app.ml.anomaly_model
+
+      - name: Run evaluation harness and check accuracy gate
+        id: eval
+        run: |
+          python -m backend.app.ml.evaluation_harness 2>&1 | tee eval_output.txt
+          # Extract overall RF accuracy and assert >= 0.95
+          python - <<'EOF'
+          import re, sys
+          with open("eval_output.txt") as f:
+              text = f.read()
+          # Match "Random Forest | 0.NNN" line from Summary table
+          m = re.search(r"Random Forest\s*\|\s*(0\.\d+)", text)
+          if not m:
+              print("ERROR: Could not parse accuracy from harness output", file=sys.stderr)
+              print(text)
+              sys.exit(1)
+          acc = float(m.group(1))
+          print(f"RF accuracy: {acc:.3f}")
+          if acc < 0.95:
+              print(f"FAIL: accuracy {acc:.3f} < 0.95 regression threshold", file=sys.stderr)
+              sys.exit(1)
+          print(f"PASS: accuracy {acc:.3f} >= 0.95")
+          EOF
+
+      - name: Post evaluation results as PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const output = fs.readFileSync('eval_output.txt', 'utf8');
+            const body = `## Model Quality Gate Results\n\n\`\`\`\n${output}\n\`\`\`\n\n*Triggered by changes to ML pipeline files.*`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

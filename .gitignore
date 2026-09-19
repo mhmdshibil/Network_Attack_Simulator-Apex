@@ -1,19 +1,56 @@
+# ── Python ────────────────────────────────────────────────────────────────────
 venv/
 __pycache__/
 *.pyc
+*.pyo
+*.egg-info/
 
+# ── Node / frontend ───────────────────────────────────────────────────────────
 node_modules/
 frontend/node_modules/
-
 .vite/
 frontend/.vite/
+frontend/dist/
 
-dist/
+# ── Environment ───────────────────────────────────────────────────────────────
 .env
-*.log
+# .env.example and .env.production.example ARE tracked (no secrets)
 
-# Wazuh generated certificates (never commit)
+# ── SQLite dev database ───────────────────────────────────────────────────────
+apex.db
+apex.db-shm
+apex.db-wal
+
+# ── Runtime data (auto-regenerated) ──────────────────────────────────────────
+data/raw/*.csv
+data/processed/*.csv
+data/processed/*.jsonl
+data/audit/
+data/policies/ip_last_seen.json
+data/policies/ip_reputation.json
+data/policies/hard_blocked_ips.json
+
+# data/training/attack_dataset.csv  IS tracked (slow to regenerate)
+# models/*.pkl                      IS tracked (save CI retrain time)
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Security scan output ──────────────────────────────────────────────────────
+security_scan_reports/semgrep_report.json
+
+# ── Wazuh generated certificates (never commit) ──────────────────────────────
 wazuh/config/wazuh_indexer_ssl_certs/
 
-# Security scan reports
-security_scan_reports/semgrep_report.json
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+
+# ── Dev artifacts (no longer needed) ─────────────────────────────────────────
+*.zip
+network_attack_simulator_v2_buildplan.md
+REPORT.md

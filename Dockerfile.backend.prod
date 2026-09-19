@@ -1,0 +1,54 @@
+# ── Stage 1: builder ─────────────────────────────────────────────────────────
+# Install all Python dependencies into a prefix so Stage 2 can copy only the
+# compiled site-packages without build tools.
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt && \
+    pip install --no-cache-dir --prefix=/install gunicorn==23.0.0
+
+# ── Stage 2: runtime ─────────────────────────────────────────────────────────
+FROM python:3.11-slim AS runtime
+
+# Non-root user for container security
+RUN groupadd --system appgroup && \
+    useradd --system --gid appgroup --no-create-home appuser
+
+WORKDIR /app
+
+# Copy compiled packages from builder (no gcc/g++ in runtime image)
+COPY --from=builder /install /usr/local
+
+# Copy only application source — data/ and models/ are bind-mounted at runtime
+COPY backend/ /app/backend/
+COPY scripts/ /app/scripts/
+
+# Create data/model directories with correct ownership;
+# the bind-mount will overlay these at runtime.
+RUN mkdir -p \
+    /app/data/policies \
+    /app/data/audit \
+    /app/data/processed \
+    /app/data/training \
+    /app/data/raw \
+    /app/models && \
+    chown -R appuser:appgroup /app
+
+USER appuser
+
+EXPOSE 8000
+
+# 4 uvicorn workers; adjust WEB_CONCURRENCY via env if needed
+CMD ["gunicorn", "backend.app.main:app", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--workers", "4", \
+     "--bind", "0.0.0.0:8000", \
+     "--timeout", "120", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-"]

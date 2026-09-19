@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+
+  # ── Job 1: Backend imports + model evaluation ────────────────────────────
+  backend-test:
+    name: Backend — Model Evaluation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install pytest pytest-asyncio httpx
+
+      - name: Verify backend imports
+        run: |
+          python -c "from backend.app.main import app; print('Backend imports OK')"
+
+      - name: Run model evaluation harness
+        run: |
+          python -m backend.app.ml.evaluation_harness
+        # Fails the job if the harness script exits non-zero
+
+  # ── Job 2: Frontend build + size report ─────────────────────────────────
+  frontend-build:
+    name: Frontend — Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Report build size
+        working-directory: frontend
+        run: |
+          echo "=== Build output ==="
+          du -sh dist/
+          echo "=== Assets ==="
+          find dist/assets -type f | sort | while read f; do
+            printf "  %-60s  %s\n" "$f" "$(du -sh "$f" | cut -f1)"
+          done
+
+  # ── Job 3: Security scan (runs after both jobs succeed) ──────────────────
+  security-scan:
+    name: Security — Semgrep + npm audit
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-build]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install semgrep
+        run: pip install semgrep
+
+      - name: Semgrep static analysis (high severity only)
+        run: |
+          semgrep --config auto backend/ \
+            --severity ERROR \
+            --quiet \
+            || echo "Semgrep found high-severity findings — review before merging"
+        continue-on-error: true   # warn, don't block; full findings in SECURITY_SCAN.md
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: npm audit (high severity)
+        working-directory: frontend
+        run: |
+          npm audit --audit-level=high \
+            || echo "npm audit found high-severity issues — review SECURITY_SCAN.md"
+        continue-on-error: true   # documented known findings in SECURITY_SCAN.md
