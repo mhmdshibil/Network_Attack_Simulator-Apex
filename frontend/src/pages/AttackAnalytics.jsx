@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react'
-import { AlertCircle, ChevronDown } from 'lucide-react'
-import { fetchTopAttackers } from '../api/api'
+import { AlertCircle, ChevronDown, X } from 'lucide-react'
+import { fetchTopAttackers, API_BASE } from '../api/api'
 
 const T = {
   border: 'rgba(255,255,255,0.10)',
   text:   '#ffffff',
   muted:  'rgba(255,255,255,0.55)',
   dim:    'rgba(255,255,255,0.28)',
+}
+
+function authFetch(url) {
+  const token = localStorage.getItem('apex_token')
+  return fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
 }
 
 function sevBadge(score) {
@@ -21,11 +26,53 @@ function sevBarAlpha(score) {
   return             { alpha: 0.28, glow: 'none' }
 }
 
+const ATTACK_LABELS = ['port_scan', 'ddos', 'bruteforce', 'sql_injection', 'malware', 'unknown_anomaly']
+
+function AttackDistribution({ counts }) {
+  if (!counts || Object.keys(counts).length === 0) return null
+  const max = Math.max(...Object.values(counts), 1)
+  return (
+    <div className="table-container" style={{ marginTop: '16px' }}>
+      <div className="table-header">
+        <span className="chart-title" style={{ margin: 0 }}>Attack Distribution</span>
+        <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.dim }}>this session</span>
+      </div>
+      <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {ATTACK_LABELS.filter(l => counts[l] != null).map(label => {
+          const count = counts[label] || 0
+          const pct = Math.round((count / max) * 100)
+          return (
+            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ minWidth: '110px', fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: T.muted, textTransform: 'capitalize' }}>
+                {label.replace(/_/g, ' ')}
+              </div>
+              <div style={{ flex: 1, height: '6px', background: 'rgba(255,255,255,0.07)', borderRadius: '3px', overflow: 'hidden' }}>
+                <div style={{
+                  width: `${pct}%`, height: '100%',
+                  background: pct > 60 ? 'rgba(255,255,255,0.80)' : pct > 30 ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.30)',
+                  borderRadius: '3px', transition: 'width 0.4s ease',
+                  boxShadow: pct > 60 ? '0 0 6px rgba(255,255,255,0.3)' : 'none',
+                }} />
+              </div>
+              <div style={{ minWidth: '36px', fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: T.text, fontWeight: pct > 60 ? 700 : 400, textAlign: 'right' }}>
+                {count}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function AttackAnalytics() {
   const [expandedIP, setExpandedIP] = useState(null)
   const [timeWindow, setTimeWindow] = useState('24h')
   const [risks, setRisks] = useState([])
   const [error, setError] = useState(null)
+  const [tiConfigured, setTiConfigured] = useState(null) // null=loading, true/false
+  const [tiBannerDismissed, setTiBannerDismissed] = useState(false)
+  const [attackCounts, setAttackCounts] = useState({})
 
   useEffect(() => {
     const load = async () => {
@@ -57,6 +104,31 @@ function AttackAnalytics() {
     return () => clearInterval(iv)
   }, [timeWindow])
 
+  // Check TI configuration
+  useEffect(() => {
+    authFetch(`${API_BASE}/api/threat-intel/stats`)
+      .then(r => r.json())
+      .then(d => setTiConfigured(!!d.configured))
+      .catch(() => setTiConfigured(false))
+  }, [])
+
+  // Fetch attack type distribution
+  useEffect(() => {
+    authFetch(`${API_BASE}/api/analytics/attack_trends`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!d) return
+        const counts = {}
+        if (Array.isArray(d.trends)) {
+          d.trends.forEach(t => { counts[t.label] = t.count })
+        } else if (d.counts) {
+          Object.assign(counts, d.counts)
+        }
+        if (Object.keys(counts).length > 0) setAttackCounts(counts)
+      })
+      .catch(() => {})
+  }, [])
+
   return (
     <div>
       <div style={{ marginBottom: '24px' }}>
@@ -67,6 +139,23 @@ function AttackAnalytics() {
           Attack Analytics
         </div>
       </div>
+
+      {/* TI inactive banner */}
+      {tiConfigured === false && !tiBannerDismissed && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+          padding: '10px 16px', marginBottom: '16px',
+          background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: '10px', fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: T.muted,
+        }}>
+          <span>
+            ℹ Threat Intelligence scoring is inactive. Add <span style={{ color: T.text, fontWeight: 600 }}>ABUSEIPDB_API_KEY</span> to .env to enable real-time IP reputation scoring.
+          </span>
+          <button onClick={() => setTiBannerDismissed(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.dim, padding: '2px', lineHeight: 0 }}>
+            <X size={13} />
+          </button>
+        </div>
+      )}
 
       {error && <div className="demo-banner"><AlertCircle size={13} /> Backend offline — check API connection</div>}
 
@@ -163,6 +252,8 @@ function AttackAnalytics() {
           </div>
         )}
       </div>
+
+      <AttackDistribution counts={attackCounts} />
     </div>
   )
 }

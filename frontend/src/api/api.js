@@ -124,4 +124,47 @@ export async function fetchDemoStatus() {
   return res.json()
 }
 
+export async function startScenario(name = 'corporate_breach') {
+  const res = await apiFetch(`${API_BASE}/api/scenario/start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+  if (!res.ok) throw new Error((await res.json()).detail || 'start failed')
+  return res.json()
+}
+
+export async function stopScenario() {
+  const res = await apiFetch(`${API_BASE}/api/scenario/stop`, { method: 'POST' })
+  if (!res.ok) throw new Error((await res.json()).detail || 'stop failed')
+  return res.json()
+}
+
+export async function fetchScenarioStatus() {
+  const res = await apiFetch(`${API_BASE}/api/scenario/status`)
+  if (!res.ok) return { is_running: false, current_act: 0, act_name: '', progress: 0, narrative_text: '' }
+  return res.json()
+}
+
+export async function resetDemo() {
+  const res = await apiFetch(`${API_BASE}/api/admin/reset-demo`, {
+    method: 'POST',
+    headers: { 'X-Confirm-Reset': 'yes' },
+  })
+  if (!res.ok) throw new Error((await res.json()).detail || 'reset failed')
+  return res.json()
+}
+
+export async function fetchTriageStats() {
+  const res = await apiFetch(`${API_BASE}/api/triage/stats`)
+  if (!res.ok) return { open_count: 0 }
+  return res.json()
+}
+
+export async function fetchExplainSummary() {
+  const res = await apiFetch(`${API_BASE}/api/explain/summary`)
+  if (!res.ok) return null
+  return res.json()
+}
+
 export { API_BASE }

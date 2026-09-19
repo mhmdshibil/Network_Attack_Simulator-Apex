@@ -1,0 +1,247 @@
+/* DemoLanding — full-screen public display board */
+.demo-landing {
+  min-height: 100vh;
+  background: #000;
+  color: #fff;
+  font-family: 'IBM Plex Mono', monospace;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header bar ── */
+.dl-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 40px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+
+.dl-header-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.dl-brand-name {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.dl-brand-sub {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.dl-header-center {
+  text-align: center;
+}
+
+.dl-header-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.5);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.dl-header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  text-align: right;
+}
+
+.dl-clock {
+  font-size: 22px;
+  font-weight: 300;
+  color: rgba(255,255,255,0.8);
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.dl-live-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(220,50,50,0.9);
+  letter-spacing: 0.12em;
+}
+
+.dl-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(220,50,50,0.9);
+  box-shadow: 0 0 8px rgba(220,50,50,0.6);
+  animation: dlPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes dlPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+/* ── Main grid ── */
+.dl-main {
+  flex: 1;
+  padding: 32px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.dl-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 20px;
+  flex: 1;
+}
+
+.dl-card {
+  background: #0a0a0a;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 32px 36px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.dl-card-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.30);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.dl-card-value {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 6rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.dl-card-sub {
+  font-size: 11px;
+  color: rgba(255,255,255,0.30);
+  letter-spacing: 0.06em;
+}
+
+.dl-threat-level {
+  font-size: 3.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.dl-threat-low      { color: rgba(255,255,255,0.85); }
+.dl-threat-elevated { color: rgba(255,200,50,0.9); }
+.dl-threat-high     { color: rgba(255,120,40,0.9); }
+.dl-threat-critical { color: rgba(220,50,50,0.95); }
+
+.dl-last-attack {
+  font-size: 1.8rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin-bottom: 6px;
+  color: rgba(255,255,255,0.85);
+}
+
+.dl-last-attack-meta {
+  font-size: 12px;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 0.04em;
+}
+
+/* ── Live feed ── */
+.dl-feed-header {
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.25);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.dl-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+  min-height: 60px;
+}
+
+.dl-feed-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #0d0d0d;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 8px;
+  animation: dlSlideIn 0.4s ease-out;
+  flex-shrink: 0;
+}
+
+@keyframes dlSlideIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.dl-feed-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.8);
+  white-space: nowrap;
+}
+
+.dl-feed-badge.blocked   { border-color: rgba(220,50,50,0.4); color: rgba(220,80,80,0.9); }
+.dl-feed-badge.rate_limited { border-color: rgba(220,160,50,0.4); color: rgba(220,160,50,0.9); }
+
+.dl-feed-ip {
+  font-size: 11px;
+  color: rgba(255,255,255,0.6);
+  flex: 1;
+}
+
+.dl-feed-time {
+  font-size: 10px;
+  color: rgba(255,255,255,0.25);
+  white-space: nowrap;
+}
+
+/* ── Footer ── */
+.dl-footer {
+  padding: 14px 40px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: rgba(255,255,255,0.18);
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}

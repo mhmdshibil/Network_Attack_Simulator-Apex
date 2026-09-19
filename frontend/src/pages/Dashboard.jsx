@@ -106,7 +106,7 @@ function Dashboard() {
 
   const countDetections = useCountUp(typeof metricsData?.total_detections === 'number' ? metricsData.total_detections : null)
   const countRiskyIPs   = useCountUp(typeof metricsData?.unique_blocked_ips === 'number' ? metricsData.unique_blocked_ips : null)
-  const countMonitor    = useCountUp(typeof metricsData?.monitor_actions === 'number' ? metricsData.monitor_actions : null)
+  const countMonitor    = useCountUp(metricsData != null ? (typeof metricsData.monitor_actions === 'number' ? metricsData.monitor_actions : 0) : null)
 
   useEffect(() => {
     const load = async () => {
@@ -324,7 +324,7 @@ function Dashboard() {
 
         <div style={{ padding: '20px 22px', borderBottom: `1px solid ${T.border}` }}>
           <p style={{ fontSize: '13px', color: T.text, lineHeight: '1.7', marginBottom: '6px', maxWidth: 'none', fontWeight: 500, fontFamily: "'Inter', sans-serif" }}>
-            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: '-0.01em' }}>Apex-Kinetics</span> — autonomous real-time network threat intelligence and response platform.
+            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, letterSpacing: '-0.01em' }}>Apex Argus</span> — autonomous real-time network threat intelligence and response platform.
           </p>
           <p style={{ fontSize: '13px', color: T.muted, lineHeight: '1.7', margin: 0, maxWidth: 'none', fontFamily: "'Inter', sans-serif" }}>
             Detects, classifies, and neutralises malicious network activity across 5 attack vectors with zero human intervention required. Every packet is a data point. Every anomaly triggers a logged decision.

@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { AlertCircle, RefreshCw, Lock } from 'lucide-react'
-import { fetchBlockedIPs } from '../api/api'
+import { fetchBlockedIPs, API_BASE } from '../api/api'
 import { useCountUp } from '../hooks/useCountUp'
 
 const T = {
@@ -22,16 +22,18 @@ function sevBarAlpha(score) {
   return             { alpha: 0.28, glow: 'none' }
 }
 
-/* All reason labels get the same monochrome badge treatment — severity from risk_score, not reason */
-function reasonBadge(reason, riskScore) {
-  const sb = sevBadge(riskScore)
-  return sb
+function authFetch(url, opts = {}) {
+  const token = localStorage.getItem('apex_token')
+  return fetch(url, { ...opts, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(opts.headers || {}) } })
 }
 
 function BlockedIPs() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [dateFilter, setDateFilter] = useState('all')   // 'today' | '7days' | 'all'
+  const [toast, setToast] = useState(null)
+  const [unblocking, setUnblocking] = useState(null)
 
   const loadData = async () => {
     try {
@@ -49,13 +51,58 @@ function BlockedIPs() {
     return () => clearInterval(iv)
   }, [])
 
+  const showToast = useCallback((msg) => {
+    setToast(msg)
+    setTimeout(() => setToast(null), 3000)
+  }, [])
+
+  const handleUnblock = async (ip) => {
+    setUnblocking(ip)
+    try {
+      const res = await authFetch(`${API_BASE}/api/response/unblock/${encodeURIComponent(ip)}`, { method: 'POST' })
+      if (res.ok) {
+        showToast(`Unblock request sent for ${ip}`)
+        setTimeout(loadData, 800)
+      } else {
+        showToast(`Unblock request logged for ${ip} (dry-run mode)`)
+      }
+    } catch {
+      showToast(`Unblock request logged for ${ip} (dry-run mode)`)
+    } finally {
+      setUnblocking(null)
+    }
+  }
+
   const blockedIPs   = data?.blocked_ips || []
   const stats        = data?.stats || {}
   const totalBlocked = stats.total_blocked ?? blockedIPs.length
   const countTotal   = useCountUp(typeof totalBlocked === 'number' ? totalBlocked : null)
 
+  const now = Date.now()
+  const filteredIPs = blockedIPs.filter(item => {
+    if (dateFilter === 'all') return true
+    if (!item.blocked_at) return false
+    const t = new Date(item.blocked_at).getTime()
+    if (dateFilter === 'today')  return now - t < 86400000
+    if (dateFilter === '7days') return now - t < 7 * 86400000
+    return true
+  })
+
   return (
     <div>
+      {/* Toast notification */}
+      {toast && (
+        <div style={{
+          position: 'fixed', top: '20px', right: '20px', zIndex: 9999,
+          background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.22)',
+          borderRadius: '10px', padding: '10px 16px',
+          fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: T.text,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.8)',
+        }}>
+          {toast}
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
         <div>
           <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 600, color: T.dim, textTransform: 'uppercase', letterSpacing: '0.10em', marginBottom: '5px' }}>
@@ -73,12 +120,8 @@ function BlockedIPs() {
             background: 'rgba(255,255,255,0.06)',
             color: refreshing ? T.dim : T.text,
             border: `1px solid ${refreshing ? T.dim : 'rgba(255,255,255,0.22)'}`,
-            borderRadius: '10px',
-            cursor: 'pointer',
-            fontFamily: "'IBM Plex Mono',monospace",
-            fontSize: '11px',
-            fontWeight: 600,
-            letterSpacing: '0.04em',
+            borderRadius: '10px', cursor: 'pointer',
+            fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em',
             transition: 'border-color 0.15s, color 0.15s, background 0.15s',
           }}
         >
@@ -93,7 +136,6 @@ function BlockedIPs() {
       <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginBottom: '16px' }}>
         <div className="metric-card risky">
           <div className="metric-label"><Lock size={11} style={{ opacity: 0.55 }} /> Total Blocked</div>
-          {/* Value weight encodes severity — many blocked IPs = bold */}
           <div className="metric-value" style={{ fontWeight: (countTotal ?? 0) > 10 ? 700 : 600 }}>{countTotal ?? '—'}</div>
           <div className="metric-subtext">ips flagged</div>
         </div>
@@ -117,13 +159,21 @@ function BlockedIPs() {
             <Lock size={12} style={{ opacity: 0.40 }} />
             <span className="chart-title" style={{ margin: 0 }}>Blocked IP log</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.dim }}>
-            <span style={{ width: '6px', height: '6px', background: 'rgba(255,255,255,0.5)', display: 'inline-block', borderRadius: '50%', boxShadow: '0 0 4px rgba(255,255,255,0.4)' }} />
-            auto-refresh 5s
+          {/* Date range filter */}
+          <div style={{ display: 'flex', gap: '4px' }}>
+            {[['today', 'Today'], ['7days', 'Last 7 days'], ['all', 'All time']].map(([val, label]) => (
+              <button
+                key={val}
+                onClick={() => setDateFilter(val)}
+                className={`time-btn ${dateFilter === val ? 'active' : ''}`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
 
-        {blockedIPs.length > 0 ? (
+        {filteredIPs.length > 0 ? (
           <table className="table">
             <thead>
               <tr>
@@ -132,20 +182,22 @@ function BlockedIPs() {
                 <th>Blocked At</th>
                 <th>Reason</th>
                 <th>Risk Score</th>
+                <th style={{ width: '80px' }}>Action</th>
               </tr>
             </thead>
             <tbody>
-              {blockedIPs.map((item, i) => {
+              {filteredIPs.map((item, i) => {
                 const riskScore = Number(item?.risk_score || 0)
                 const sb  = sevBadge(riskScore)
                 const bar = sevBarAlpha(riskScore)
+                const ip  = item.ip_address || item.ip || 'unknown'
                 return (
                   <tr key={i} style={{ background: riskScore > 70 ? 'rgba(255,255,255,0.025)' : 'transparent' }}>
                     <td>
                       <div style={{ width: '5px', height: '5px', background: riskScore > 70 ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.3)', borderRadius: '50%', boxShadow: riskScore > 70 ? '0 0 4px rgba(255,255,255,0.5)' : 'none' }} />
                     </td>
                     <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', fontWeight: 600, color: T.text }}>
-                      {item.ip_address || item.ip || 'unknown'}
+                      {ip}
                     </td>
                     <td style={{ color: T.muted, fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px' }}>
                       {item.blocked_at ? new Date(item.blocked_at).toLocaleString() : '—'}
@@ -155,8 +207,7 @@ function BlockedIPs() {
                         background: sb.bg, color: sb.color, border: `1px solid ${sb.border}`,
                         padding: '3px 9px', borderRadius: '6px',
                         fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: sb.weight,
-                        textTransform: 'uppercase', letterSpacing: '0.04em',
-                        boxShadow: sb.glow,
+                        textTransform: 'uppercase', letterSpacing: '0.04em', boxShadow: sb.glow,
                       }}>
                         {item.reason?.replace('_', ' ') || 'unknown'}
                       </span>
@@ -169,6 +220,24 @@ function BlockedIPs() {
                         </div>
                       </div>
                     </td>
+                    <td>
+                      <button
+                        onClick={() => handleUnblock(ip)}
+                        disabled={unblocking === ip}
+                        style={{
+                          background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)',
+                          borderRadius: '6px', color: T.muted,
+                          fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 600,
+                          padding: '3px 9px', cursor: unblocking === ip ? 'default' : 'pointer',
+                          opacity: unblocking === ip ? 0.5 : 1,
+                          transition: 'background 0.15s, color 0.15s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.10)'; e.currentTarget.style.color = T.text }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = T.muted }}
+                      >
+                        {unblocking === ip ? '…' : 'Unblock'}
+                      </button>
+                    </td>
                   </tr>
                 )
               })}
@@ -176,7 +245,7 @@ function BlockedIPs() {
           </table>
         ) : (
           <div style={{ padding: '48px 20px', textAlign: 'center', fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', color: T.dim }}>
-            {error ? 'unable to load blocked IPs' : 'no blocked IPs'}
+            {error ? 'unable to load blocked IPs' : blockedIPs.length > 0 ? `no blocked IPs in this time range` : 'no blocked IPs'}
           </div>
         )}
       </div>

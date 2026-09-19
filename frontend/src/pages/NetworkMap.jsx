@@ -6,14 +6,14 @@ import './NetworkMap.css'
 const TOTAL_DEVICES = 243
 const FLASH_MS = 3000
 
-/* College network zones — 2x2 topology.
-   `id` values match the target_zone field emitted by CollegeNetworkProfile
-   (scripts/college_profile.py) so an explicit target_zone maps directly. */
+/* Generic business zones — 2x2 topology.
+   `id` values match the target_zone field emitted by OrgNetworkProfile
+   (scripts/org_profile.py) so an explicit target_zone maps directly. */
 const ZONES = [
-  { id: 'admin',        name: 'Admin Block',      range: '10.0.1.x', octet: 1, Icon: Shield,  assets: ['Director PC', 'HOD Systems', 'Finance Server'] },
-  { id: 'student_wifi', name: 'Student WiFi',     range: '10.0.2.x', octet: 2, Icon: Wifi,    assets: ['~200 student devices'] },
-  { id: 'server_room',  name: 'Server Room',      range: '10.0.3.x', octet: 3, Icon: Server,  assets: ['Web Server', 'LMS (Moodle)', 'ERP System'] },
-  { id: 'lab',          name: 'CS Lab / ECE Lab', range: '10.0.4.x', octet: 4, Icon: Monitor, assets: ['40 lab machines'] },
+  { id: 'admin',        name: 'Management Office',     range: '10.0.1.x', octet: 1, Icon: Shield,  assets: ['Executive Systems', 'HR Portal', 'Finance Server'] },
+  { id: 'student_wifi', name: 'Guest Network',          range: '10.0.2.x', octet: 2, Icon: Wifi,    assets: ['~200 guest/visitor devices'] },
+  { id: 'server_room',  name: 'Server Infrastructure', range: '10.0.3.x', octet: 3, Icon: Server,  assets: ['Web Server', 'Database', 'Application Server'] },
+  { id: 'lab',          name: 'Endpoint Network',       range: '10.0.4.x', octet: 4, Icon: Monitor, assets: ['40 workstations'] },
 ]
 
 /* Map an internal 10.0.N.x address to a zone id, else null */
@@ -56,9 +56,9 @@ function StatusPill({ status }) {
 }
 
 function NetworkMap() {
-  // Running counts reset on every page load (fresh component mount)
   const [hits, setHits]               = useState(() => Object.fromEntries(ZONES.map(z => [z.id, 0])))
   const [flashing, setFlashing]       = useState(() => Object.fromEntries(ZONES.map(z => [z.id, false])))
+  const [lastAttack, setLastAttack]   = useState(() => Object.fromEntries(ZONES.map(z => [z.id, null])))
   const [threats, setThreats]         = useState(0)
   const [lastUpdated, setLastUpdated] = useState(null)
   const timersRef = useRef({})
@@ -70,8 +70,8 @@ function NetworkMap() {
     setHits(prev => ({ ...prev, [zoneId]: (prev[zoneId] || 0) + 1 }))
     setThreats(t => t + 1)
     setLastUpdated(Date.now())
+    setLastAttack(prev => ({ ...prev, [zoneId]: d.label || 'unknown' }))
 
-    // Flash the matched zone red for FLASH_MS, resetting any in-flight timer
     setFlashing(prev => ({ ...prev, [zoneId]: true }))
     if (timersRef.current[zoneId]) clearTimeout(timersRef.current[zoneId])
     timersRef.current[zoneId] = setTimeout(() => {
@@ -81,7 +81,6 @@ function NetworkMap() {
 
   useDetectionStream(onDetection)
 
-  // Clear any pending flash timers on unmount
   useEffect(() => () => {
     Object.values(timersRef.current).forEach(clearTimeout)
   }, [])
@@ -93,7 +92,8 @@ function NetworkMap() {
     return 'secure'
   }
 
-  const zonesUnderAttack = ZONES.filter(z => flashing[z.id]).length
+  // Count all zones that have been hit this session (attack + alert)
+  const zonesUnderAttack = ZONES.filter(z => statusOf(z.id) !== 'secure').length
 
   const summary = [
     { label: 'Devices Monitored',  value: TOTAL_DEVICES },
@@ -130,6 +130,7 @@ function NetworkMap() {
           const { Icon } = zone
           const status = statusOf(zone.id)
           const count = hits[zone.id] || 0
+          const attack = lastAttack[zone.id]
           return (
             <div key={zone.id} className={`netmap-zone netmap-zone-${status}`}>
               <div className="netmap-zone-head">
@@ -138,7 +139,10 @@ function NetworkMap() {
                   <div className="netmap-zone-name">{zone.name}</div>
                   <div className="netmap-zone-range">{zone.range}</div>
                 </div>
-                <div className="netmap-count" title="Detections today">{count}</div>
+                <div className="netmap-count-wrap" title="Detections this session">
+                  <div className="netmap-count">{count}</div>
+                  <div className="netmap-count-sub">this session</div>
+                </div>
               </div>
 
               <div className="netmap-assets">
@@ -148,6 +152,14 @@ function NetworkMap() {
                     {a}
                   </div>
                 ))}
+                {attack && (
+                  <div className="netmap-last-attack">
+                    Last attack: <span className="netmap-last-attack-type">{attack.replace(/_/g, ' ')}</span>
+                  </div>
+                )}
+                {!attack && (
+                  <div className="netmap-last-attack" style={{ opacity: 0.35 }}>Last attack: —</div>
+                )}
               </div>
 
               <div className="netmap-zone-foot">

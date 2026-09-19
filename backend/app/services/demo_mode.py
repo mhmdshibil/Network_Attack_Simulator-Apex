@@ -41,6 +41,7 @@ _DEMO_FILE = _RAW_DIR / "demo_attack.csv"
 _TRAFFIC_HEADER = [
     "timestamp", "source_ip", "destination_ip", "destination_port",
     "protocol", "packet_count", "request_rate", "success_flag", "label",
+    "bytes_per_packet", "connection_duration", "payload_entropy",
 ]
 
 # ── Private / reserved ranges ─────────────────────────────────────────────────

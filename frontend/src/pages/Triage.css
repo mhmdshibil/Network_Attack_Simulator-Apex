@@ -9,3 +9,19 @@
 tr.triage-row-new {
   animation: triage-row-flash 3s ease-out forwards;
 }
+
+/* Slow red pulse for SLA-breached rows */
+@keyframes row-pulse {
+  0%, 100% { background-color: transparent; }
+  50%       { background-color: rgba(255, 51, 51, 0.08); }
+}
+
+tr.triage-row-breached {
+  animation: row-pulse 2.5s ease-in-out infinite;
+}
+
+/* Slide-in animation for the edit panel */
+@keyframes triage-panel-slide-in {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}

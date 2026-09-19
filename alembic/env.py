@@ -1,5 +1,5 @@
 """
-Alembic async environment for Apex-Kinetics.
+Alembic async environment for Apex Argus.
 
 Reads DATABASE_URL from the environment (same URL the app uses) and runs
 migrations against the async engine (asyncpg / aiosqlite). Autogenerate targets

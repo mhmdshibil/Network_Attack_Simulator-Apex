@@ -4,7 +4,7 @@
  * Monochrome base with explicit color exceptions for severity/status/SLA (carry meaning).
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { ClipboardList, X, CheckCheck, Clock, AlertTriangle } from 'lucide-react'
+import { ClipboardList, X, CheckCheck, Clock, AlertTriangle, Shield } from 'lucide-react'
 import { API_BASE } from '../api/api'
 import { useDetectionStream } from '../hooks/useDetectionStream'
 import './Triage.css'
@@ -125,6 +125,7 @@ function EditPanel({ caseItem, onClose, onSaved }) {
       background: '#050505', borderLeft: '1px solid rgba(255,255,255,0.12)',
       zIndex: 1000, overflowY: 'auto', padding: '26px 24px',
       boxShadow: '-8px 0 40px rgba(0,0,0,0.7)',
+      animation: 'triage-panel-slide-in 0.25s ease-out forwards',
     }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '22px' }}>
@@ -376,8 +377,11 @@ function Triage() {
             loading…
           </div>
         ) : cases.length === 0 ? (
-          <div style={{ padding: '48px 20px', textAlign: 'center', fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', color: T.dim }}>
-            no triage cases
+          <div style={{ padding: '56px 20px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+            <Shield size={32} style={{ color: 'rgba(255,255,255,0.12)' }} />
+            <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', color: T.dim }}>
+              No cases yet. Detections will appear here automatically.
+            </div>
           </div>
         ) : (
           <table className="table">
@@ -397,10 +401,11 @@ function Triage() {
             <tbody>
               {cases.map(c => {
                 const isNew = newIds.has(c.id)
+                const isBreached = c.sla_status === 'breached' && !['resolved','false_positive'].includes(c.status)
                 return (
                   <tr
                     key={c.id}
-                    className={isNew ? 'triage-row-new' : ''}
+                    className={`${isNew ? 'triage-row-new' : ''} ${isBreached ? 'triage-row-breached' : ''}`}
                     style={{ cursor: 'pointer' }}
                     onClick={() => setEditCase(c)}
                   >

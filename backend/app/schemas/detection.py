@@ -26,14 +26,19 @@ from pydantic import BaseModel
 class FeatureWindowIn(BaseModel):
     """
     A single aggregated feature window POSTed to /api/detections by a sensor
-    (see sensor_agent.py). The four feature fields are required and numeric —
-    FastAPI returns 422 automatically if any is missing or non-numeric.
+    (see sensor_agent.py). The four required features are validated by FastAPI
+    (422 returned automatically on missing/non-numeric input). The three v2
+    features are optional with sane defaults so old sensors remain compatible.
     """
     source_ip: str
     packets_per_second: float
     avg_request_rate: float
     failed_connections: float
     unique_ports: float
+    # v2 features — defaults match neutral/normal traffic mid-points
+    bytes_per_packet: float = 300.0
+    connection_duration: float = 2.0
+    payload_entropy: float = 4.0
     target_zone: Optional[str] = None   # optional — carried through to the WS broadcast
     window_start: Optional[str] = None  # optional ISO timestamp of the window
     sensor_mode: Optional[str] = None   # optional — "demo" | "real"

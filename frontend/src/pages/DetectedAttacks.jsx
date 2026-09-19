@@ -58,6 +58,7 @@ function severityWeight(label) {
 }
 
 const MAX_ROWS = 200
+const PAGE_SIZE = 20
 
 /* ── SHAP bar ────────────────────────────────────────────────── */
 function ShapBar({ feature, value, shap }) {
@@ -256,6 +257,7 @@ function DetectedAttacks() {
   const [wsConnected, setWsConnected] = useState(false)
   const [tiEnabled, setTiEnabled] = useState(null)   // null=unknown, false=no keys
   const [tiPopover, setTiPopover] = useState(null)   // { ip, x, y, loading, data }
+  const [page, setPage] = useState(1)
   const seenRef = useRef(new Set())
 
   React.useEffect(() => {
@@ -289,6 +291,7 @@ function DetectedAttacks() {
     seenRef.current.add(key)
     setAttacks(prev => [d, ...prev].slice(0, MAX_ROWS))
     setWsConnected(true)
+    setPage(1)  // new events push back to page 1
   }, [])
 
   useDetectionStream(onDetection)
@@ -321,7 +324,12 @@ function DetectedAttacks() {
           </div>
         </div>
 
-        {attacks.length > 0 ? (
+        {attacks.length > 0 ? (() => {
+          const totalPages = Math.ceil(attacks.length / PAGE_SIZE)
+          const start = (page - 1) * PAGE_SIZE
+          const pageAttacks = attacks.slice(start, start + PAGE_SIZE)
+          return (
+          <>
           <table className="table">
             <thead>
               <tr>
@@ -336,7 +344,7 @@ function DetectedAttacks() {
               </tr>
             </thead>
             <tbody>
-              {attacks.map((attack, i) => {
+              {pageAttacks.map((attack, i) => {
                 const lb = labelBadge(attack.label)
                 const ab = actionBadge(attack.action)
                 const isSelected = selected && selected.ip === attack.ip && selected.timestamp === attack.timestamp
@@ -375,11 +383,14 @@ function DetectedAttacks() {
                       }
                     </td>
                     <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: '#fff', fontWeight: w }}>
-                      {attack.confidence != null ? `${(attack.confidence * 100).toFixed(0)}%` : '—'}
+                      {attack.confidence != null ? `${(attack.confidence * 100).toFixed(0)}%` : 'N/A'}
                     </td>
                     <td>
                       {tiEnabled === false ? (
-                        <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '9px', color: 'rgba(255,255,255,0.35)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', padding: '3px 7px', letterSpacing: '0.04em' }}>
+                        <span
+                          title="Threat Intelligence inactive. Set ABUSEIPDB_API_KEY in .env to enable."
+                          style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '9px', color: 'rgba(255,255,255,0.35)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', padding: '3px 7px', letterSpacing: '0.04em', cursor: 'help' }}
+                        >
                           TI: OFF
                         </span>
                       ) : (() => {
@@ -423,7 +434,36 @@ function DetectedAttacks() {
               })}
             </tbody>
           </table>
-        ) : (
+          {/* Pagination bar */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', borderTop: '1px solid rgba(255,255,255,0.10)' }}>
+            <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: 'rgba(255,255,255,0.35)' }}>
+              Showing {start + 1}–{Math.min(start + PAGE_SIZE, attacks.length)} of {attacks.length} detections
+            </span>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="time-btn"
+                style={{ padding: '4px 12px', opacity: page === 1 ? 0.35 : 1, cursor: page === 1 ? 'default' : 'pointer' }}
+              >
+                ← Prev
+              </button>
+              <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: 'rgba(255,255,255,0.45)', padding: '4px 8px', alignSelf: 'center' }}>
+                {page}/{totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="time-btn"
+                style={{ padding: '4px 12px', opacity: page === totalPages ? 0.35 : 1, cursor: page === totalPages ? 'default' : 'pointer' }}
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+          </>
+          )
+        })() : (
           <div style={{ padding: '48px 20px', textAlign: 'center', fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', color: 'rgba(255,255,255,0.30)' }}>
             no attacks detected
           </div>

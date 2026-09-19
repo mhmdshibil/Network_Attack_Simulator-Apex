@@ -2,7 +2,7 @@ import React from 'react'
 import { Route, Mail } from 'lucide-react'
 import './Roadmap.css'
 
-/* Product roadmap — a pitch page for prospective college / corporate partners. */
+/* Product roadmap — a pitch page for prospective partners. */
 const PHASES = [
   {
     id: 1,
@@ -32,12 +32,13 @@ const PHASES = [
     name: 'Real Network Deployment',
     status: 'PILOT READY',
     tone: 'pilot',
-    tagline: 'Not yet built — ready to pilot on real infrastructure.',
+    tagline: 'Not yet built — ready to pilot on your existing network infrastructure.',
+    timeline: 'Est. 4–6 weeks with pilot partner',
     sections: [
       {
         heading: 'Requirements',
         items: [
-          'Network sensor nodes (Raspberry Pi 4, ~₹4,000/node)',
+          'Network sensor nodes (e.g., Raspberry Pi 4) per monitored subnet',
           'IT department cooperation for SPAN port or subnet access',
           'PostgreSQL for event storage at scale',
         ],
@@ -52,7 +53,7 @@ const PHASES = [
         ],
       },
     ],
-    cost: 'Estimated cost: ₹50,000–₹1,50,000 for college-wide deployment',
+    cost: 'Infrastructure costs vary by deployment scale. Contact us for a pilot assessment.',
   },
   {
     id: 3,
@@ -60,11 +61,12 @@ const PHASES = [
     status: 'ROADMAP',
     tone: 'roadmap',
     tagline: 'Future vision.',
+    timeline: 'Est. Q2 2027',
     sections: [
       {
         heading: 'What it adds',
         items: [
-          'Multi-tenant support (multiple campuses / orgs)',
+          'Multi-tenant support (multiple sites / organizations)',
           'Compliance reports: ISO 27001, SOC 2, PCI-DSS',
           'Integrations: Splunk, IBM QRadar, Jira, ServiceNow, Slack',
           'Threat intel feeds: AbuseIPDB, VirusTotal, CISA KEV',
@@ -78,13 +80,13 @@ const PHASES = [
 
 function Roadmap() {
   return (
-    <div>
+    <div style={{ paddingBottom: '4rem' }}>
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
         <div className="roadmap-eyebrow">
           <Route size={12} style={{ opacity: 0.6 }} /> Product Roadmap
         </div>
-        <div className="roadmap-title">Where Apex-Kinetics is going</div>
+        <div className="roadmap-title">Where Apex Argus is going</div>
       </div>
 
       {/* Vertical timeline */}
@@ -103,7 +105,17 @@ function Roadmap() {
                   <div className="roadmap-phase-kicker">Phase {phase.id}</div>
                   <div className="roadmap-phase-name">{phase.name}</div>
                 </div>
-                <span className={`roadmap-badge badge-${phase.tone}`}>{phase.status}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+                  <span className={`roadmap-badge badge-${phase.tone}`}>{phase.status}</span>
+                  {phase.timeline && (
+                    <span style={{
+                      fontFamily: "var(--font-mono)", fontSize: '10px',
+                      color: 'var(--text-dim)', letterSpacing: '0.04em',
+                    }}>
+                      {phase.timeline}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="roadmap-tagline">{phase.tagline}</div>
@@ -129,12 +141,12 @@ function Roadmap() {
       <div className="roadmap-partner">
         <div className="roadmap-partner-heading">Partner With Us</div>
         <p className="roadmap-partner-text">
-          Apex-Kinetics is looking for pilot partners. If you're a network administrator or IT
-          manager interested in deploying real-time threat detection on your infrastructure,
+          Apex Argus is looking for pilot partners. If you're a network administrator or IT
+          manager interested in deploying real-time threat detection on your network,
           we'd like to hear from you.
         </p>
-        <a className="roadmap-partner-contact" href="mailto:pilot@apex-kinetics.io">
-          <Mail size={13} /> pilot@apex-kinetics.io
+        <a className="roadmap-partner-contact" href="mailto:pilot@apex-argus.io">
+          <Mail size={13} /> pilot@apex-argus.io
         </a>
       </div>
     </div>

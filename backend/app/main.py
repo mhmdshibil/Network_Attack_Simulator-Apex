@@ -24,6 +24,8 @@ from backend.app.api.reports import router as reports_router
 from backend.app.api.routes_threat_intel import router as threat_intel_router
 from backend.app.api.routes_triage import router as triage_router
 from backend.app.api.routes_notifications import router as notifications_router
+from backend.app.api.routes_scenario import router as scenario_router
+from backend.app.api.routes_admin import router as admin_router
 from backend.app.services.auto_attack import auto_attack_loop
 from backend.app.services.demo_mode import DEMO_MODE, enable as demo_enable, disable as demo_disable
 
@@ -84,6 +86,8 @@ app.include_router(reports_router)
 app.include_router(threat_intel_router)
 app.include_router(triage_router)
 app.include_router(notifications_router)
+app.include_router(scenario_router)
+app.include_router(admin_router)
 
 
 @app.get("/api/health")

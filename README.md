@@ -1,4 +1,4 @@
-# Apex-Kinetics — Network Attack Simulator
+# Apex Argus — Network Attack Simulator
 
 A full-stack SOC (Security Operations Center) simulation platform. Generates synthetic network attack traffic, runs it through a real ML detection pipeline, and surfaces alerts, SHAP explanations, MITRE ATT&CK mappings, and LLM-generated incident summaries in a live dashboard.
 
@@ -229,7 +229,7 @@ docker compose --profile wazuh up -d
 
 **Threat Intelligence** — every detected IP is cross-referenced against AbuseIPDB, VirusTotal, and a local blocklist (Phase 2). Set `ABUSEIPDB_API_KEY` and/or `VIRUSTOTAL_API_KEY` in `.env` (both free). Results are cached 24h in the `ip_reputation` table; a `threat_score` (AbuseIPDB×0.6 + VirusTotal×0.4) rides along in the detection stream, `threat_score > 80` escalates the action to BLOCK, and the Detected Attacks page shows a clickable **TI Score** badge. Without any key the service falls back to the local CIDR blocklist and the badge shows `TI: OFF`. Endpoints: `GET /api/threat-intel/{ip}` and `GET /api/threat-intel/stats`.
 
-**Notifications** — Apex-Kinetics fires Slack and email alerts when detections cross severity thresholds, with 5-minute IP-level deduplication and per-channel rate limits (10 Slack/min, 20 email/hr). All notification calls are fire-and-forget in daemon threads — they never block the detection pipeline.
+**Notifications** — Apex Argus fires Slack and email alerts when detections cross severity thresholds, with 5-minute IP-level deduplication and per-channel rate limits (10 Slack/min, 20 email/hr). All notification calls are fire-and-forget in daemon threads — they never block the detection pipeline.
 
 *Trigger conditions* (any one is sufficient):
 - `attack_type == malware` with confidence > 80%

@@ -33,6 +33,7 @@ _RAW_DIR = BASE_DIR / "data" / "raw"
 _TRAFFIC_HEADER = [
     "timestamp", "source_ip", "destination_ip", "destination_port",
     "protocol", "packet_count", "request_rate", "success_flag", "label",
+    "bytes_per_packet", "connection_duration", "payload_entropy",
 ]
 
 # (generator_fn, kwargs, output_filename, weight)
@@ -58,16 +59,16 @@ def _clear_raw_dir() -> None:
         p.unlink()
 
 
-def _run_college_cycle() -> None:
-    """Write a single college-profile window (10-column schema incl. target_zone)."""
-    from scripts.college_profile import CollegeNetworkProfile
+def _run_org_cycle() -> None:
+    """Write a single org-profile window (10-column schema incl. target_zone)."""
+    from scripts.org_profile import OrgNetworkProfile
 
-    profile = CollegeNetworkProfile()
+    profile = OrgNetworkProfile()
     rows = profile.generate_window()
-    path = _RAW_DIR / "college_traffic.csv"
+    path = _RAW_DIR / "org_traffic.csv"
     with open(path, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(CollegeNetworkProfile.TRAFFIC_HEADER)
+        w.writerow(OrgNetworkProfile.TRAFFIC_HEADER)
         w.writerows(rows)
 
 
@@ -76,11 +77,11 @@ def _run_cycle() -> int:
 
     _RAW_DIR.mkdir(parents=True, exist_ok=True)
 
-    if TRAFFIC_PROFILE == "college":
-        # College profile owns the whole window; clear stale files first so the
-        # raw dir holds only the 10-column college schema.
+    if TRAFFIC_PROFILE in ("org", "college"):
+        # Org profile owns the whole window; clear stale files first so the
+        # raw dir holds only the 10-column org schema.
         _clear_raw_dir()
-        _run_college_cycle()
+        _run_org_cycle()
     else:
         # Default behavior (unchanged).
         # Always write normal traffic

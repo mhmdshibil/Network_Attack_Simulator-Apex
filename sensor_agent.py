@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-sensor_agent.py — bridge between the Apex-Kinetics simulation and a real network.
+sensor_agent.py — bridge between the Apex Argus simulation and a real network.
 
 This is a standalone process (not part of the FastAPI app). It builds 5-second
 feature windows — one record per source IP with the four features the ML model
@@ -86,6 +86,9 @@ def post_events(events: list, mode: str) -> list:
             "avg_request_rate": ev["avg_request_rate"],
             "failed_connections": ev["failed_connections"],
             "unique_ports": ev["unique_ports"],
+            "bytes_per_packet": ev.get("bytes_per_packet", 300.0),
+            "connection_duration": ev.get("connection_duration", 2.0),
+            "payload_entropy": ev.get("payload_entropy", 4.0),
             "window_start": window_start,
             "sensor_mode": mode,
         }
@@ -138,19 +141,23 @@ def _demo_raw_rows() -> list:
     return rows
 
 
-# Column positions in the generator row schema
-_COL_SRC_IP   = 1
-_COL_DST_PORT = 3
-_COL_PKT_CNT  = 5
-_COL_REQ_RATE = 6
-_COL_SUCCESS  = 7
-_COL_LABEL    = 8
+# Column positions in the generator row schema (v2 — 12 columns)
+_COL_SRC_IP       = 1
+_COL_DST_PORT     = 3
+_COL_PKT_CNT      = 5
+_COL_REQ_RATE     = 6
+_COL_SUCCESS      = 7
+_COL_LABEL        = 8
+_COL_BYTES_PER_PKT = 9
+_COL_CONN_DUR     = 10
+_COL_ENTROPY      = 11
 
 
 def _aggregate_rows(rows: list) -> list:
     """Collapse raw rows into one feature record per source IP."""
     by_ip = defaultdict(lambda: {
         "packets": 0, "rates": [], "failed": 0, "ports": set(), "labels": defaultdict(int),
+        "bpp": [], "dur": [], "ent": [],
     })
     for r in rows:
         src = r[_COL_SRC_IP]
@@ -161,6 +168,14 @@ def _aggregate_rows(rows: list) -> list:
             acc["failed"] += 1
         acc["ports"].add(r[_COL_DST_PORT])
         acc["labels"][r[_COL_LABEL]] += 1
+        # v2 features — guard for old 9-column rows that may still appear
+        if len(r) > _COL_ENTROPY:
+            try:
+                acc["bpp"].append(float(r[_COL_BYTES_PER_PKT]))
+                acc["dur"].append(float(r[_COL_CONN_DUR]))
+                acc["ent"].append(float(r[_COL_ENTROPY]))
+            except (TypeError, ValueError):
+                pass
 
     events = []
     for src, acc in by_ip.items():
@@ -171,6 +186,9 @@ def _aggregate_rows(rows: list) -> list:
             "avg_request_rate": round(sum(rates) / len(rates), 3),
             "failed_connections": int(acc["failed"]),
             "unique_ports": int(len(acc["ports"])),
+            "bytes_per_packet": round(sum(acc["bpp"]) / len(acc["bpp"]), 3) if acc["bpp"] else 300.0,
+            "connection_duration": round(sum(acc["dur"]) / len(acc["dur"]), 3) if acc["dur"] else 2.0,
+            "payload_entropy": round(sum(acc["ent"]) / len(acc["ent"]), 3) if acc["ent"] else 4.0,
             # observed label is demo-only metadata; real mode omits it
             "observed_label": max(acc["labels"], key=acc["labels"].get),
         })
@@ -191,12 +209,12 @@ def run_demo() -> None:
 MIN_PACKETS = 3            # noise filter — ignore source IPs with < 3 packets
 TEST_CAPTURE_SECONDS = 10  # duration for --test-capture
 
-# College subnets → NetworkMap zone ids (matches college_profile.py / NetworkMap.jsx)
+# Network subnets → NetworkMap zone ids (matches org_profile.py / NetworkMap.jsx)
 _ZONE_BY_OCTET = {1: "admin", 2: "student_wifi", 3: "server_room", 4: "lab"}
 
 
 def _dst_zone(ip_dst) -> "str | None":
-    """Map a destination IP to a college zone id, else None."""
+    """Map a destination IP to a network zone id, else None."""
     m = re.match(r"^10\.0\.(\d{1,3})\.", ip_dst or "")
     return _ZONE_BY_OCTET.get(int(m.group(1))) if m else None
 
@@ -254,6 +272,7 @@ def _capture_window(duration: int):
 
     stats = defaultdict(lambda: {
         "packets": 0, "syn": 0, "failed": 0, "ports": set(), "zones": defaultdict(int),
+        "total_bytes": 0,
     })
     packet_count = 0
 
@@ -276,6 +295,10 @@ def _capture_window(duration: int):
             acc = stats[src]
             acc["packets"] += 1
             packet_count += 1
+            try:
+                acc["total_bytes"] += int(pkt.length)
+            except Exception:
+                pass
 
             # target_zone from destination IP
             zone = _dst_zone(getattr(pkt.ip, "dst", None))
@@ -308,12 +331,16 @@ def _capture_window(duration: int):
         if acc["packets"] < MIN_PACKETS:
             continue  # noise filter
         zone = max(acc["zones"], key=acc["zones"].get) if acc["zones"] else None
+        bpp = round(acc["total_bytes"] / acc["packets"], 2) if acc["packets"] > 0 else 300.0
         events.append({
             "source_ip": src,
             "packets_per_second": round(acc["packets"] / duration, 3),
             "avg_request_rate": round(acc["syn"] / duration, 3),
             "failed_connections": int(acc["failed"]),
             "unique_ports": int(len(acc["ports"])),
+            "bytes_per_packet": bpp,
+            "connection_duration": 0.0,   # not derivable without session tracking
+            "payload_entropy": 0.0,       # not derivable without payload access
             "target_zone": zone,
         })
     return events, packet_count, len(stats)

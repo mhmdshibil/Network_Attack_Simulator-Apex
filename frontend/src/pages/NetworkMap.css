@@ -126,9 +126,16 @@
   margin-top: 2px;
 }
 
-/* Attack-count badge */
-.netmap-count {
+/* Attack-count badge + "this session" label */
+.netmap-count-wrap {
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.netmap-count {
   min-width: 30px;
   height: 26px;
   padding: 0 9px;
@@ -143,6 +150,15 @@
   font-weight: 600;
   color: var(--text);
   transition: color 0.25s, border-color 0.25s, background 0.25s;
+}
+
+.netmap-count-sub {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
 }
 
 /* ── Assets list ─────────────────────────────────────────────── */
@@ -169,6 +185,21 @@
   border-radius: 50%;
   background: rgba(255,255,255,0.35);
   flex-shrink: 0;
+}
+
+/* Last-attack type line below asset list */
+.netmap-last-attack {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+}
+
+.netmap-last-attack-type {
+  color: var(--text-muted);
+  text-transform: capitalize;
 }
 
 .netmap-zone-foot { display: flex; align-items: center; }

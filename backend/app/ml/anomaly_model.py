@@ -39,6 +39,7 @@ def train_isolation_forest(contamination: float = 0.02) -> IsolationForest:
         raw_df = pd.DataFrame(raw_rows, columns=[
             "timestamp", "source_ip", "destination_ip", "destination_port",
             "protocol", "packet_count", "request_rate", "success_flag", "label",
+            "bytes_per_packet", "connection_duration", "payload_entropy",
         ])
         agg = aggregate_by_time_window(raw_df, window_seconds=5)
         if not agg.empty:

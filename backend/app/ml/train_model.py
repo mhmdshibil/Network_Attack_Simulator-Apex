@@ -23,7 +23,14 @@ def train_random_forest() -> RandomForestClassifier:
         X, y, test_size=0.2, random_state=42, stratify=y
     )
 
-    model = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1)
+    model = RandomForestClassifier(
+        n_estimators=300,
+        max_depth=None,
+        min_samples_split=5,
+        class_weight="balanced",
+        random_state=42,
+        n_jobs=-1,
+    )
     model.fit(X_train, y_train)
 
     y_pred = model.predict(X_test)

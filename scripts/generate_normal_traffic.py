@@ -19,14 +19,17 @@ def generate_normal_traffic(n=200):
     for i in range(n):
         rows.append([
             (start + timedelta(seconds=i)).isoformat(),
-            f"10.0.0.{random.randint(2, 20)}",  # Source IP
-            "192.168.1.10",  # Destination IP
-            80,  # Destination Port
-            "HTTP",  # Protocol
-            random.randint(1, 5),  # Packet Count
-            round(random.uniform(0.5, 2.0), 2),  # Request Rate
-            True,  # Success Flag
-            "normal"  # Label
+            f"10.0.0.{random.randint(2, 20)}",          # Source IP
+            "192.168.1.10",                              # Destination IP
+            80,                                          # Destination Port
+            "HTTP",                                      # Protocol
+            random.randint(1, 5),                        # Packet Count
+            round(random.uniform(0.5, 2.0), 2),          # Request Rate
+            True,                                        # Success Flag
+            "normal",                                    # Label
+            round(random.uniform(200.0, 600.0), 2),      # bytes_per_packet
+            round(random.uniform(1.0, 10.0), 3),         # connection_duration
+            round(random.uniform(3.5, 6.0), 2),          # payload_entropy
         ])
 
     return rows
@@ -45,7 +48,10 @@ if __name__ == "__main__":
             "packet_count",
             "request_rate",
             "success_flag",
-            "label"
+            "label",
+            "bytes_per_packet",
+            "connection_duration",
+            "payload_entropy",
         ])
         # Write the generated data to the file.
         writer.writerows(generate_normal_traffic())

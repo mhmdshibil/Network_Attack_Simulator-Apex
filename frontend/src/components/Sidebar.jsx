@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react'
-import { Activity, AlertTriangle, BarChart3, Lock, Sun, Moon, Wifi, LogOut, ShieldAlert, Network, Route, ClipboardList, ShieldCheck } from 'lucide-react'
+import { Activity, AlertTriangle, BarChart3, Lock, Sun, Moon, Wifi, LogOut, ShieldAlert, Network, Route, ClipboardList, ShieldCheck, Brain } from 'lucide-react'
 import { useCursorPhysics } from '../hooks/useCursorPhysics'
 import { useDarkMode } from '../hooks/useDarkMode'
 
@@ -15,9 +15,10 @@ function Sidebar({ activeSection, setActiveSection, role, authRequired, onLogout
     { id: 'attack-analytics', label: 'Analytics',    icon: BarChart3 },
     { id: 'blocked-ips',      label: 'Blocked IPs',  icon: Lock },
     { id: 'network-map',      label: 'Network Map',  icon: Network },
-    { id: 'triage',           label: 'Triage',       icon: ClipboardList },
-    { id: 'compliance',       label: 'Compliance',   icon: ShieldCheck },
-    { id: 'roadmap',          label: 'Roadmap',      icon: Route },
+    { id: 'triage',           label: 'Triage',        icon: ClipboardList },
+    { id: 'compliance',       label: 'Compliance',    icon: ShieldCheck },
+    { id: 'model-insights',   label: 'ML Insights',   icon: Brain },
+    { id: 'roadmap',          label: 'Roadmap',       icon: Route },
   ]
 
   useEffect(() => {
@@ -48,7 +49,7 @@ function Sidebar({ activeSection, setActiveSection, role, authRequired, onLogout
             <line x1="16" y1="3" x2="16" y2="27" stroke="rgba(255,255,255,0.35)" strokeWidth="1"/>
             <circle cx="16" cy="16" r="2.2" fill="#fff"/>
           </svg>
-          <span className="navbar-title">Apex<span style={{ opacity: 0.45, fontWeight: 500 }}>·K</span></span>
+          <span className="navbar-title">Apex<span style={{ opacity: 0.65, fontWeight: 500 }}> Argus</span></span>
         </div>
 
         {/* Nav items */}

@@ -66,8 +66,29 @@ def aggregate_by_time_window(df: pd.DataFrame, window_seconds: int = 5) -> pd.Da
         label=("label", "first"),
     )
 
+    # v2 features — present in new generators and sensor_agent v2+.
+    # Fall back to sensible defaults when processing old 9-column CSV files.
+    for col, default in [
+        ("bytes_per_packet", 300.0),
+        ("connection_duration", 2.0),
+        ("payload_entropy", 4.0),
+    ]:
+        if col in df.columns:
+            agg_kwargs[col] = (col, "mean")
+        else:
+            df[col] = default
+
+    # Re-add after potential default fill so the agg_kwargs can reference them.
+    for col, default in [
+        ("bytes_per_packet", 300.0),
+        ("connection_duration", 2.0),
+        ("payload_entropy", 4.0),
+    ]:
+        if col not in agg_kwargs:
+            agg_kwargs[col] = (col, "mean")
+
     # Passthrough: carry target_zone (most common value per window per IP) when
-    # the raw data provides it (e.g. college_profile.py). Absent → None column.
+    # the raw data provides it (e.g. org_profile.py). Absent → None column.
     has_target_zone = "target_zone" in df.columns
     if has_target_zone:
         agg_kwargs["target_zone"] = (

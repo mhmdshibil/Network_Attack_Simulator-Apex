@@ -1,6 +1,6 @@
 /**
  * Compliance — Phase 3 / Task 2
- * ISO 27001 compliance dashboard with score, controls table, and 30-day metrics.
+ * ISO 27001 compliance dashboard with SVG gauge, controls table, and 30-day metrics.
  */
 import React, { useState, useEffect, useCallback } from 'react'
 import { ShieldCheck, FileDown } from 'lucide-react'
@@ -55,6 +55,50 @@ function computeScore(stats) {
     score: Math.round(resRate * 40 + detAcc * 30 + slaRate * 30),
     resRate, detAcc, slaRate,
   }
+}
+
+/* SVG circle gauge — pure SVG, no library */
+function CircleGauge({ score, color }) {
+  const r = 68
+  const cx = 90
+  const cy = 90
+  const circumference = 2 * Math.PI * r
+  const dashOffset = score != null ? circumference * (1 - score / 100) : circumference
+
+  return (
+    <svg width="180" height="180" viewBox="0 0 180 180" style={{ display: 'block' }}>
+      {/* Background track */}
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="10" />
+      {/* Progress arc */}
+      <circle
+        cx={cx} cy={cy} r={r}
+        fill="none"
+        stroke={color}
+        strokeWidth="10"
+        strokeLinecap="round"
+        strokeDasharray={circumference}
+        strokeDashoffset={dashOffset}
+        transform={`rotate(-90 ${cx} ${cy})`}
+        style={{ transition: 'stroke-dashoffset 0.6s ease, stroke 0.4s ease' }}
+      />
+      {/* Score text */}
+      <text
+        x={cx} y={cy + 10}
+        textAnchor="middle"
+        fill={color}
+        fontSize="30"
+        fontWeight="700"
+        fontFamily="'Space Grotesk', sans-serif"
+        style={{ letterSpacing: '-0.03em' }}
+      >
+        {score ?? '—'}
+      </text>
+      {/* Sub label */}
+      <text x={cx} y={cy + 28} textAnchor="middle" fill="rgba(255,255,255,0.30)" fontSize="9" fontFamily="'IBM Plex Mono', monospace">
+        OUT OF 100
+      </text>
+    </svg>
+  )
 }
 
 function ProgressBar({ label, rate, weight, color }) {
@@ -155,7 +199,7 @@ function Compliance() {
             className="time-btn"
             style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '8px 14px', textTransform: 'none', letterSpacing: '0.02em', opacity: downloading ? 0.6 : 1, cursor: downloading ? 'default' : 'pointer' }}
           >
-            <FileDown size={13} />
+            <ShieldCheck size={13} />
             {downloading ? 'Generating…' : 'Download Compliance Report'}
           </button>
         </div>
@@ -163,19 +207,18 @@ function Compliance() {
 
       {/* Compliance score card */}
       <div style={{ ...panelStyle, padding: '28px 32px', marginBottom: '20px' }}>
-        <div style={{ display: 'flex', gap: '48px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-          {/* Large score */}
-          <div style={{ minWidth: '180px' }}>
-            <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.dim, textTransform: 'uppercase', letterSpacing: '0.10em', marginBottom: '10px' }}>
+        <div style={{ display: 'flex', gap: '40px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+
+          {/* SVG Gauge */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+            <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.dim, textTransform: 'uppercase', letterSpacing: '0.10em', marginBottom: '4px' }}>
               Compliance Score
             </div>
-            <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: '72px', fontWeight: 700, color: scoreColor, letterSpacing: '-0.04em', lineHeight: 1 }}>
-              {score ?? '—'}
-            </div>
-            <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', color: scoreColor, marginTop: '8px', fontWeight: 700, letterSpacing: '0.06em' }}>
+            <CircleGauge score={score} color={scoreColor} />
+            <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', color: scoreColor, fontWeight: 700, letterSpacing: '0.06em' }}>
               {scoreLabel}
             </div>
-            <div style={{ fontFamily: "'Inter',sans-serif", fontSize: '11px', color: T.dim, marginTop: '6px' }}>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontSize: '10px', color: T.dim, textAlign: 'center' }}>
               &lt;60 non-compliant · 60–80 partial · &gt;80 compliant
             </div>
           </div>
@@ -211,8 +254,8 @@ function Compliance() {
             </tr>
           </thead>
           <tbody>
-            {ISO_CONTROLS.map(c => (
-              <tr key={c.id}>
+            {ISO_CONTROLS.map((c, idx) => (
+              <tr key={c.id} style={{ background: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
                 <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: T.text, fontWeight: 600 }}>{c.id}</td>
                 <td style={{ fontFamily: "'Inter',sans-serif", fontSize: '12px', color: T.muted }}>{c.control}</td>
                 <td style={{ fontFamily: "'Inter',sans-serif", fontSize: '11px', color: T.dim }}>{c.impl}</td>

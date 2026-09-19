@@ -30,7 +30,10 @@ def generate_port_scan(n_ports=80):
             random.randint(1, 3),  # Packet Count
             round(random.uniform(20.0, 40.0), 2),  # Request Rate
             False,  # Success Flag (most scans will fail)
-            "port_scan"  # Label
+            "port_scan",  # Label
+            round(random.uniform(40.0, 80.0), 2),    # bytes_per_packet
+            round(random.uniform(0.1, 0.5), 3),      # connection_duration
+            round(random.uniform(1.0, 3.0), 2),      # payload_entropy
         ])
 
     return rows
@@ -52,7 +55,10 @@ if __name__ == "__main__":
             "packet_count",
             "request_rate",
             "success_flag",
-            "label"
+            "label",
+            "bytes_per_packet",
+            "connection_duration",
+            "payload_entropy",
         ])
         # Write the generated data to the file.
         writer.writerows(generate_port_scan())

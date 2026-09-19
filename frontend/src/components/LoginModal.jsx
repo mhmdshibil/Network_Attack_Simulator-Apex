@@ -129,7 +129,7 @@ export default function LoginModal() {
     <div style={S.overlay}>
       <div style={S.panel}>
         <div style={S.eyebrow}>Security Operations</div>
-        <div style={S.title}>Apex-Kinetics</div>
+        <div style={S.title}>Apex Argus</div>
         <div style={S.subtitle}>Sign in to access the SOC dashboard</div>
 
         <form onSubmit={handleSubmit}>

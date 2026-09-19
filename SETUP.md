@@ -1,6 +1,6 @@
 # Setup Guide
 
-Step-by-step instructions for every way to run Apex-Kinetics: Docker (recommended), local development, and model retraining.
+Step-by-step instructions for every way to run Apex Argus: Docker (recommended), local development, and model retraining.
 
 ---
 

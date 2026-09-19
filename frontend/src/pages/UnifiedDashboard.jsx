@@ -8,6 +8,7 @@ import BlockedIPs from './BlockedIPs'
 import NetworkMap from './NetworkMap'
 import Triage from './Triage'
 import Compliance from './Compliance'
+import ModelInsights from './ModelInsights'
 import Roadmap from './Roadmap'
 
 const sections = {
@@ -20,6 +21,7 @@ const sections = {
   'network-map':     { component: NetworkMap },
   'triage':          { component: Triage },
   'compliance':      { component: Compliance },
+  'model-insights':  { component: ModelInsights },
   'roadmap':         { component: Roadmap },
 }
 

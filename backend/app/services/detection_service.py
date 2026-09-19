@@ -219,6 +219,9 @@ class DetectionEngine:
         avg_request_rate: float,
         failed_connections: float,
         unique_ports: float,
+        bytes_per_packet: float = 300.0,
+        connection_duration: float = 2.0,
+        payload_entropy: float = 4.0,
         target_zone: str | None = None,
         timestamp: str | None = None,
         sensor_mode: str = "demo",
@@ -235,7 +238,8 @@ class DetectionEngine:
         ts = timestamp or datetime.now(timezone.utc).isoformat()
 
         X = pd.DataFrame(
-            [[packets_per_second, avg_request_rate, failed_connections, unique_ports]],
+            [[packets_per_second, avg_request_rate, failed_connections, unique_ports,
+              bytes_per_packet, connection_duration, payload_entropy]],
             columns=FEATURE_COLUMNS,
         )
 
