@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react'
-import { Activity, AlertTriangle, BarChart3, Lock, Sun, Moon, Wifi, LogOut, ShieldAlert, Network, Route, ClipboardList, ShieldCheck, Brain } from 'lucide-react'
+import { Activity, AlertTriangle, BarChart3, Lock, Sun, Moon, Wifi, LogOut, ShieldAlert, Network, Route, ClipboardList, ShieldCheck, Brain, Globe } from 'lucide-react'
 import { useCursorPhysics } from '../hooks/useCursorPhysics'
 import { useDarkMode } from '../hooks/useDarkMode'
 
@@ -15,6 +15,7 @@ function Sidebar({ activeSection, setActiveSection, role, authRequired, onLogout
     { id: 'attack-analytics', label: 'Analytics',    icon: BarChart3 },
     { id: 'blocked-ips',      label: 'Blocked IPs',  icon: Lock },
     { id: 'network-map',      label: 'Network Map',  icon: Network },
+    { id: 'geo-map',          label: 'Geo Map',       icon: Globe },
     { id: 'triage',           label: 'Triage',        icon: ClipboardList },
     { id: 'compliance',       label: 'Compliance',    icon: ShieldCheck },
     { id: 'model-insights',   label: 'ML Insights',   icon: Brain },

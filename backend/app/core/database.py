@@ -24,7 +24,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Integer, JSON, String, func, select as sa_select
+from sqlalchemy import Boolean, DateTime, Float, Integer, JSON, String, func, select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -49,6 +49,21 @@ class IpReputation(Base):
     isp:           Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     checked_at:    Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     raw_response:  Mapped[Optional[dict]]     = mapped_column(JSON, nullable=True)
+
+
+# ── geoip_cache table (Phase 5A / GeoIP) ────────────────────────────────────
+class GeoIPCache(Base):
+    __tablename__ = "geoip_cache"
+
+    ip:           Mapped[str]              = mapped_column(String(45), primary_key=True)
+    lat:          Mapped[Optional[float]]  = mapped_column(Float, nullable=True)
+    lon:          Mapped[Optional[float]]  = mapped_column(Float, nullable=True)
+    country_code: Mapped[Optional[str]]    = mapped_column(String(3),   nullable=True)
+    country_name: Mapped[Optional[str]]    = mapped_column(String(100), nullable=True)
+    city:         Mapped[Optional[str]]    = mapped_column(String(100), nullable=True)
+    isp:          Mapped[Optional[str]]    = mapped_column(String(200), nullable=True)
+    source:       Mapped[Optional[str]]    = mapped_column(String(20),  nullable=True)
+    cached_at:    Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 # ── Engine / session (lazy) ─────────────────────────────────────────────────
@@ -404,3 +419,57 @@ def create_triage_case_safe(**kw) -> None:
         run_async_bg(create_triage_case(**kw))
     except Exception as exc:
         print(f"[TRIAGE] case creation skipped: {exc}")
+
+
+# ── GeoIP cache helpers (Phase 5A) ───────────────────────────────────────────
+
+async def get_geo_cache(ip: str) -> Optional[dict]:
+    _, sm = _init_engine()
+    async with sm() as s:
+        row = await s.get(GeoIPCache, ip)
+        if row is None:
+            return None
+        return {
+            "ip": row.ip,
+            "lat": row.lat,
+            "lon": row.lon,
+            "country_code": row.country_code,
+            "country_name": row.country_name,
+            "city": row.city,
+            "isp": row.isp,
+            "source": row.source,
+            "cached_at": _as_utc(row.cached_at).isoformat() if row.cached_at else None,
+        }
+
+
+async def upsert_geo_cache(**kw) -> None:
+    _, sm = _init_engine()
+    async with sm() as s:
+        row = await s.get(GeoIPCache, kw["ip"])
+        if row is None:
+            row = GeoIPCache(ip=kw["ip"])
+            s.add(row)
+        row.lat          = kw.get("lat")
+        row.lon          = kw.get("lon")
+        row.country_code = kw.get("country_code")
+        row.country_name = kw.get("country_name")
+        row.city         = kw.get("city")
+        row.isp          = kw.get("isp")
+        row.source       = kw.get("source")
+        row.cached_at    = kw.get("cached_at") or datetime.now(timezone.utc)
+        await s.commit()
+
+
+async def get_all_geo_cache() -> list:
+    _, sm = _init_engine()
+    async with sm() as s:
+        result = await s.execute(sa_select(GeoIPCache))
+        return [
+            {
+                "ip": r.ip, "lat": r.lat, "lon": r.lon,
+                "country_code": r.country_code, "country_name": r.country_name,
+                "city": r.city, "isp": r.isp, "source": r.source,
+                "cached_at": _as_utc(r.cached_at).isoformat() if r.cached_at else None,
+            }
+            for r in result.scalars().all()
+        ]

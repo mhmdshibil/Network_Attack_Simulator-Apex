@@ -167,4 +167,22 @@ export async function fetchExplainSummary() {
   return res.json()
 }
 
+export async function fetchGeoIP(ip) {
+  const res = await apiFetch(`${API_BASE}/api/geo/${encodeURIComponent(ip)}`)
+  if (!res.ok) return null
+  return res.json()
+}
+
+export async function fetchGeoSummary() {
+  const res = await apiFetch(`${API_BASE}/api/geo/summary`)
+  if (!res.ok) return null
+  return res.json()
+}
+
+export async function fetchGeoAttackers() {
+  const res = await apiFetch(`${API_BASE}/api/geo/attackers`)
+  if (!res.ok) return []
+  return res.json()
+}
+
 export { API_BASE }

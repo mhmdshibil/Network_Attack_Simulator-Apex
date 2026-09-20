@@ -58,6 +58,26 @@ _DECISION_TO_ACTION = {
 }
 
 
+def _geo_enrich(ip: str):
+    """
+    Read geo from cache synchronously (fast, background-loop DB read).
+    Fire a background async lookup on cache miss so the next detection
+    for this IP will have geo data. Returns a plain dict or None.
+    """
+    try:
+        from backend.app.services.geoip_service import geoip_service as _gs
+        cached = _gs.lookup_sync_cache_only(ip)
+        if cached is None:
+            try:
+                from backend.app.core.database import run_async_bg
+                run_async_bg(_gs.lookup(ip))
+            except Exception:
+                pass
+        return cached
+    except Exception:
+        return None
+
+
 class DetectionEngine:
 
     def __init__(self):
@@ -178,6 +198,7 @@ class DetectionEngine:
             # Threat-intel enrichment (threat_score + possible BLOCK escalation)
             self._enrich_threat_intel(detection)
             action = detection["action"]
+            detection["geo"] = _geo_enrich(alert_ip)
 
             detections.append(detection)
             self._log_detection(detection)          # CSV (primary/fallback)
@@ -301,6 +322,7 @@ class DetectionEngine:
             # Threat-intel enrichment (threat_score + possible BLOCK escalation)
             self._enrich_threat_intel(detection)
             action = detection["action"]
+            detection["geo"] = _geo_enrich(source_ip)
 
             self._log_detection(detection)          # CSV (primary/fallback)
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { fetchMetrics, fetchSystemOverview, API_BASE } from '../api/api'
 import { useCountUp } from '../hooks/useCountUp'
+import { getFlag, getCountryName } from '../utils/countryFlags'
 import './DemoLanding.css'
 
 const MAX_FEED = 5
@@ -85,10 +86,11 @@ function DemoLanding() {
           if (msg.type === 'detection') {
             const entry = {
               id: `${msg.ip}-${msg.timestamp}`,
-              label:  msg.label,
-              ip:     msg.ip,
-              action: msg.action,
+              label:     msg.label,
+              ip:        msg.ip,
+              action:    msg.action,
               timestamp: msg.timestamp,
+              geo:       msg.geo || null,
             }
             setFeed(prev => [entry, ...prev].slice(0, MAX_FEED))
             setLastAttack(entry)
@@ -188,7 +190,17 @@ function DemoLanding() {
                   <span className={`dl-feed-badge ${item.action}`}>
                     {item.label.replace(/_/g, ' ')}
                   </span>
-                  <span className="dl-feed-ip">{item.ip}</span>
+                  {item.geo ? (
+                    <span className="dl-feed-ip">
+                      {getFlag(item.geo.country_code)}{' '}
+                      {item.geo.city
+                        ? `${item.geo.city}, ${getCountryName(item.geo.country_code)}`
+                        : getCountryName(item.geo.country_code)}{' '}
+                      · {item.ip}
+                    </span>
+                  ) : (
+                    <span className="dl-feed-ip">{item.ip}</span>
+                  )}
                   <span className="dl-feed-time">{timeAgo(item.timestamp)}</span>
                 </div>
               ))

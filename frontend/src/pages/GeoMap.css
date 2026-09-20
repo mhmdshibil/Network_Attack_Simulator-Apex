@@ -1,0 +1,334 @@
+/* GeoMap — Phase 5A */
+
+.geo-map-page {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 100%;
+}
+
+/* ── Page title ─────────────────────────────────────────────────────────────── */
+.geo-map-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.45);
+  margin-bottom: 4px;
+}
+
+/* ── Stats bar ──────────────────────────────────────────────────────────────── */
+.geo-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.geo-stat-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.geo-stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.35);
+  margin-bottom: 4px;
+}
+
+.geo-stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.1;
+}
+
+.geo-stat-sub {
+  font-size: 10px;
+  color: rgba(255,255,255,0.35);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Map container ──────────────────────────────────────────────────────────── */
+.geo-map-container {
+  position: relative;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  overflow: hidden;
+  flex: 1;
+  min-height: 360px;
+}
+
+.world-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ── Country circles ────────────────────────────────────────────────────────── */
+.country-dot {
+  transition: fill 0.5s ease, opacity 0.5s ease;
+  cursor: default;
+}
+
+/* ── Attack point markers ───────────────────────────────────────────────────── */
+.attack-marker {
+  cursor: pointer;
+}
+
+.attack-marker:hover .attack-core {
+  r: 6;
+}
+
+@keyframes pulse-ring {
+  0%   { r: 5;  opacity: 0.8; }
+  100% { r: 18; opacity: 0;   }
+}
+
+.pulse-ring {
+  animation: pulse-ring 1.4s ease-out forwards;
+}
+
+/* ── Controls overlay ───────────────────────────────────────────────────────── */
+.geo-controls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.geo-ctrl-btn {
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(0,0,0,0.55);
+  color: rgba(255,255,255,0.55);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.geo-ctrl-btn:hover {
+  border-color: rgba(255,255,255,0.35);
+  color: rgba(255,255,255,0.85);
+}
+
+.geo-ctrl-btn.active {
+  background: rgba(255, 60, 60, 0.25);
+  border-color: rgba(255, 80, 80, 0.55);
+  color: #ff6666;
+}
+
+.geo-live-indicator {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.45);
+  text-transform: uppercase;
+}
+
+.geo-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #33cc66;
+}
+
+.geo-live-dot.paused {
+  background: rgba(255,255,255,0.2);
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+.geo-live-dot.blinking {
+  animation: blink 1.2s ease-in-out infinite;
+}
+
+/* ── Tooltip ────────────────────────────────────────────────────────────────── */
+.geo-tooltip {
+  position: fixed;
+  background: rgba(10, 15, 30, 0.96);
+  border: 1px solid rgba(255,80,80,0.4);
+  border-radius: 6px;
+  padding: 8px 11px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(255,255,255,0.85);
+  pointer-events: none;
+  z-index: 9999;
+  max-width: 220px;
+  white-space: nowrap;
+}
+
+.geo-tooltip-ip {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: rgba(255,255,255,0.5);
+}
+
+.geo-tooltip-label {
+  font-weight: 700;
+  color: #ff6666;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+/* ── Bottom section ─────────────────────────────────────────────────────────── */
+.geo-bottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* ── Countries table ────────────────────────────────────────────────────────── */
+.geo-countries-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.geo-card-header {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.35);
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.geo-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.geo-table th {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.25);
+  font-weight: 600;
+  padding: 6px 14px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.geo-table td {
+  padding: 6px 14px;
+  color: rgba(255,255,255,0.75);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.geo-table tr:last-child td {
+  border-bottom: none;
+}
+
+.geo-table tr:hover td {
+  background: rgba(255,255,255,0.03);
+}
+
+.geo-count-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(255,60,60,0.2);
+  color: #ff8080;
+}
+
+/* ── Recent feed ────────────────────────────────────────────────────────────── */
+.geo-feed-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.geo-feed-list {
+  padding: 6px 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.geo-feed-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px;
+  font-size: 11px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+
+.geo-feed-item:last-child {
+  border-bottom: none;
+}
+
+.geo-feed-flag {
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.geo-feed-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #ff8080;
+  flex-shrink: 0;
+}
+
+.geo-feed-location {
+  color: rgba(255,255,255,0.65);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.geo-feed-ip {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: rgba(255,255,255,0.35);
+  flex-shrink: 0;
+}
+
+.geo-empty {
+  padding: 24px 14px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.2);
+  text-align: center;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .geo-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .geo-bottom {
+    grid-template-columns: 1fr;
+  }
+}

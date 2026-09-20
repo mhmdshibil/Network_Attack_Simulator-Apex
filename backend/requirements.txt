@@ -31,3 +31,6 @@ h11>=0.14.0
 
 # Production WSGI server (used by Dockerfile.backend.prod)
 gunicorn>=21.0
+
+# GeoIP (optional — for local MaxMind DB lookups; falls back to ip-api.com if not installed)
+geoip2>=4.8.0
