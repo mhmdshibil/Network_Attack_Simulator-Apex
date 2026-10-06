@@ -8,6 +8,8 @@ import DemoPanel from './components/DemoPanel'
 import NarrativeOverlay from './components/NarrativeOverlay'
 import DemoLanding from './pages/DemoLanding'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { DetectionStreamProvider } from './context/DetectionStreamContext'
+import { ToastProvider, useToast } from './context/ToastContext'
 import { setUnauthorizedHandler, triggerDemoAttack, startScenario, stopScenario, resetDemo } from './api/api'
 import { useDemoShortcuts, ShortcutsHelp } from './hooks/useDemoShortcuts.jsx'
 
@@ -41,11 +43,25 @@ function AppInner() {
   const [resetToast, setResetToast] = useState(null)
 
   const { onUnauthorized, token, role, authRequired, demoMode, logout } = useAuth()
+  const { showToast } = useToast()
   const isAdmin = !authRequired || role === 'admin'
 
   useEffect(() => {
     setUnauthorizedHandler(onUnauthorized)
   }, [onUnauthorized])
+
+  // Phase 7 — apply saved theme on mount (main.jsx also sets it pre-paint).
+  useEffect(() => {
+    const saved = localStorage.getItem('apex-theme') || 'dark'
+    document.documentElement.dataset.theme = saved
+  }, [])
+
+  // Cross-section navigation via custom event (e.g. dashboard "View Campaigns →")
+  useEffect(() => {
+    const nav = (e) => { if (e.detail) setActiveSection(e.detail) }
+    window.addEventListener('apex:navigate', nav)
+    return () => window.removeEventListener('apex:navigate', nav)
+  }, [])
 
   useEffect(() => {
     const energyField = new CursorEnergyField({
@@ -65,13 +81,15 @@ function AppInner() {
       await resetDemo()
       setShowResetModal(false)
       setResetToast('System reset — ready for demo')
+      showToast('System reset complete — reloading…', 'success')
       setTimeout(() => { window.location.reload() }, 2000)
     } catch (e) {
       setResetToast(e.message)
+      showToast(e.message || 'Reset failed', 'error')
     } finally {
       setResetting(false)
     }
-  }, [])
+  }, [showToast])
 
   const openReset = useCallback(() => {
     if (isAdmin) setShowResetModal(true)
@@ -142,7 +160,11 @@ function App() {
 
   return (
     <AuthProvider>
-      <AppInner />
+      <ToastProvider>
+        <DetectionStreamProvider>
+          <AppInner />
+        </DetectionStreamProvider>
+      </ToastProvider>
     </AuthProvider>
   )
 }

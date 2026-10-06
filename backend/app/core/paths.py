@@ -14,6 +14,10 @@ PROCESSED_DIR = DATA_DIR / "processed"
 POLICIES_DIR = DATA_DIR / "policies"
 AUDIT_DIR = DATA_DIR / "audit"
 TRAINING_DIR = DATA_DIR / "training"
+BASELINE_DIR = DATA_DIR / "baseline"
+
+# --- network baseline (Phase 5D) ---
+BASELINE_FILE = BASELINE_DIR / "baseline.json"
 
 # --- detection output ---
 DETECTIONS_FILE = PROCESSED_DIR / "detections.csv"

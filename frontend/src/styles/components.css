@@ -1,0 +1,129 @@
+/* ============================================================================
+   components.css — Phase 7 Task 3b, 3c, 3d, 3e
+   Shared card / table / button / empty-state / skeleton primitives.
+   ============================================================================ */
+
+/* ── Task 3b — Cards & panels ──────────────────────────────────────────── */
+.card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 16px 20px;
+}
+.card-header {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.card-value {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+.card-sub {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+/* ── Task 3b — Data tables ─────────────────────────────────────────────── */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.data-table th {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  font-weight: 500;
+}
+.data-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+}
+.data-table tr:hover td { background: var(--hover-bg); }
+
+/* ── Task 3c — Button variants ─────────────────────────────────────────── */
+.btn {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-primary);
+  transition: all 0.15s ease;
+}
+.btn:hover { border-color: var(--text-primary); }
+.btn-primary {
+  border-color: var(--text-accent);
+  color: var(--text-accent);
+}
+.btn-primary:hover {
+  background: var(--text-accent);
+  color: var(--bg-page);
+}
+.btn-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.btn-danger:hover {
+  background: var(--danger);
+  color: var(--bg-page);
+}
+.btn-sm { padding: 4px 10px; font-size: 0.68rem; }
+
+/* ── Task 3d — Empty states ────────────────────────────────────────────── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text-dim);
+  gap: 12px;
+}
+.empty-state svg { opacity: 0.3; }
+.empty-state p {
+  font-size: 0.9rem;
+  text-align: center;
+  max-width: 300px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── Task 3e — Skeleton loaders ────────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-panel) 25%,
+    var(--hover-bg) 50%,
+    var(--bg-panel) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 3px;
+}
+.skeleton-row { height: 44px; margin-bottom: 8px; }
+.skeleton-card { height: 96px; }
+.skeleton-title { height: 28px; width: 220px; margin-bottom: 18px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}

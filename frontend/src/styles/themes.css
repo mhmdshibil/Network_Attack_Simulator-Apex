@@ -1,0 +1,132 @@
+/* ============================================================================
+   themes.css — Phase 7 Task 1 + 2a + 2h
+   Theme variables (data-theme="dark" | "light"), global transitions, scrollbar.
+
+   Design note: the app's existing design system (index.css) is already fully
+   CSS-variable driven (--bg, --bg-panel, --text, --border, …). This file
+   redefines those tokens per-theme so toggling data-theme flips the entire
+   app with no per-file edits. The new spec tokens (--bg-page, --text-primary…)
+   are also provided for new Phase 6/7 components.
+   ============================================================================ */
+
+:root[data-theme="dark"] {
+  /* ── Spec tokens (Phase 7) ── */
+  --bg-page:        #0a0a0a;
+  --bg-panel:       #1a1a1a;
+  --bg-panel2:      #111111;
+  --bg-panel3:      #222222;
+  --text-primary:   #ffffff;
+  --text-dim:       #888888;
+  --text-accent:    #ff3333;
+  --border:         #2a2a2a;
+  --border-accent:  #ff3333;
+  --chart-line:     #ffffff;
+  --input-bg:       #1a1a1a;
+  --input-border:   #333333;
+  --hover-bg:       #222222;
+  --scrollbar-bg:   #1a1a1a;
+  --scrollbar-thumb:#333333;
+  --success:        #3ddc84;
+  --warning:        #ffe08a;
+  --danger:         #ff3333;
+  --particle-color: rgba(255,255,255,0.15);
+
+  /* ── Existing design-system tokens re-mapped (keeps dark pixel-identical) ── */
+  --bg:         #000000;
+  --bg-raised:  #111111;
+  --border-mid: rgba(255,255,255,0.18);
+  --border-hi:  rgba(255,255,255,0.30);
+  --text:       #ffffff;
+  --text-muted: rgba(255,255,255,0.55);
+}
+
+:root[data-theme="light"] {
+  /* ── Spec tokens (Phase 7) ── */
+  --bg-page:        #f4f4f4;
+  --bg-panel:       #ffffff;
+  --bg-panel2:      #f0f0f0;
+  --bg-panel3:      #e8e8e8;
+  --text-primary:   #0a0a0a;
+  --text-dim:       #666666;
+  --text-accent:    #cc0000;
+  --border:         #dddddd;
+  --border-accent:  #cc0000;
+  --chart-line:     #0a0a0a;
+  --input-bg:       #ffffff;
+  --input-border:   #cccccc;
+  --hover-bg:       #f0f0f0;
+  --scrollbar-bg:   #f0f0f0;
+  --scrollbar-thumb:#cccccc;
+  --success:        #1a7a1a;
+  --warning:        #b87800;
+  --danger:         #cc0000;
+  --particle-color: rgba(0,0,0,0.08);
+
+  /* ── Existing design-system tokens re-mapped to light equivalents ── */
+  --bg:         #f4f4f4;
+  --bg-raised:  #f0f0f0;
+  --border-mid: rgba(0,0,0,0.20);
+  --border-hi:  rgba(0,0,0,0.32);
+  --text:       #0a0a0a;
+  --text-muted: rgba(0,0,0,0.60);
+  --text-dim:   rgba(0,0,0,0.40);
+}
+
+/* index.css redefines --bg-panel / --text-dim under its own :root; our
+   attribute-scoped rules win on specificity, but re-assert the panel token
+   for light so gradient-border panels read white. */
+:root[data-theme="light"] {
+  --bg-panel: #ffffff;
+}
+
+/* ── Task 2a — Global transitions ──────────────────────────────────────────
+   Smooth colour/theme changes everywhere. Excludes elements where a
+   transition causes flicker or jank (canvas, svg paint, particle layer). */
+* {
+  transition: background-color 0.2s ease,
+              border-color 0.2s ease,
+              color 0.15s ease;
+}
+
+canvas,
+svg path,
+svg polygon,
+svg circle,
+svg line,
+.particle-canvas,
+.data-table tr {
+  transition: none !important;
+}
+
+/* ── Task 2d — Button interactions ─────────────────────────────────────── */
+button {
+  transition: opacity 0.15s ease,
+              transform 0.1s ease,
+              background-color 0.15s ease,
+              border-color 0.15s ease,
+              color 0.15s ease;
+}
+button:active { transform: scale(0.97); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Task 2h — Scrollbar styling (webkit) ─────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--scrollbar-bg); }
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* Light-mode readability patch — the base design paints structural lines and
+   fills with white-alpha (baked literals). In light mode those vanish on a
+   white panel, so give panels a visible hairline + soft shadow. */
+:root[data-theme="light"] .metric-card,
+:root[data-theme="light"] .chart-container,
+:root[data-theme="light"] .table-container,
+:root[data-theme="light"] .grid-3 > * {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.06) !important;
+}
+:root[data-theme="light"] .navbar {
+  border-right: 1px solid var(--border);
+}

@@ -65,7 +65,28 @@ def get_detections(limit: int = 50, _: dict = Depends(require_analyst)):
         return []
 
     records = df.tail(limit).to_dict(orient="records")
-    return [enrich(r) for r in records]
+    enriched = [enrich(r) for r in records]
+
+    # CVE context (5C) — attach the top KEV match per attack type. Matches are
+    # cached per distinct label so we do at most ~6 lookups regardless of limit.
+    try:
+        from backend.app.services.cve_service import cve_service
+        from backend.app.core.database import run_async
+        label_cache: dict = {}
+        for r in enriched:
+            lbl = r.get("label")
+            if lbl not in label_cache:
+                matches = run_async(cve_service.match_detection({"attack_type": lbl}), timeout=5)
+                label_cache[lbl] = (
+                    {"top_cve": matches[0].cve_id, "cve_name": matches[0].name,
+                     "ransomware": matches[0].ransomware}
+                    if matches else None
+                )
+            r["cve_context"] = label_cache[lbl]
+    except Exception:
+        pass
+
+    return enriched
 
 @router.post("/detections")
 def ingest_detection(payload: FeatureWindowIn, _: dict = Depends(require_analyst)):

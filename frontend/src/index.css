@@ -180,13 +180,14 @@ p strong { font-weight: 600; color: var(--text); }
   font-weight: 500;
   width: 100%;
   text-align: left;
-  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s, padding-left 0.15s ease;
   position: relative;
 }
 
 .nav-button:hover {
   background: rgba(255,255,255,0.05);
   color: var(--text);
+  padding-left: 14px;   /* subtle 2px nudge on hover (Task 2b) */
 }
 
 .nav-button.active {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { AlertCircle, ChevronDown, X } from 'lucide-react'
+import { AlertCircle, ChevronDown, X, Printer } from 'lucide-react'
 import { fetchTopAttackers, API_BASE } from '../api/api'
 
 const T = {
@@ -131,13 +131,19 @@ function AttackAnalytics() {
 
   return (
     <div>
-      <div style={{ marginBottom: '24px' }}>
-        <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 600, color: T.dim, textTransform: 'uppercase', letterSpacing: '0.10em', marginBottom: '5px' }}>
-          Threat Intelligence
+      <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '16px' }}>
+        <div>
+          <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 600, color: T.dim, textTransform: 'uppercase', letterSpacing: '0.10em', marginBottom: '5px' }}>
+            Threat Intelligence
+          </div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '22px', fontWeight: 700, color: T.text, letterSpacing: '-0.02em' }}>
+            Attack Analytics
+          </div>
         </div>
-        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '22px', fontWeight: 700, color: T.text, letterSpacing: '-0.02em' }}>
-          Attack Analytics
-        </div>
+        <button onClick={() => window.print()} className="time-btn" title="Export this view to PDF"
+          style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '8px 14px', textTransform: 'none', letterSpacing: '0.02em' }}>
+          <Printer size={13} /> Export
+        </button>
       </div>
 
       {/* TI inactive banner */}

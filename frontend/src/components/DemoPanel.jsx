@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Zap, ChevronDown, Clock, Radio, Play, Square, RotateCcw, AlertTriangle } from 'lucide-react'
+import { Zap, ChevronDown, Clock, Radio, Play, Square, RotateCcw, AlertTriangle, Calendar } from 'lucide-react'
 import {
   enableDemo, disableDemo, triggerDemoAttack, fetchDemoStatus,
   startScenario, stopScenario, fetchScenarioStatus,
   fetchMetrics, fetchSystemOverview, fetchTriageStats,
-  resetDemo,
+  resetDemo, fetchScheduleStatus, setSchedule, disableSchedule,
 } from '../api/api'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 
 const CLASSES = ['port_scan', 'ddos', 'bruteforce', 'sql_injection', 'malware']
 
@@ -31,6 +32,19 @@ function fmtCountdown(s) {
   if (s == null) return null
   const m = Math.floor(s / 60), r = s % 60
   return m > 0 ? `${m}m ${String(r).padStart(2, '0')}s` : `${s}s`
+}
+
+// Lightweight client-side cron describer for the live modal preview.
+function cronPreview(cron) {
+  const f = (cron || '').trim().split(/\s+/)
+  if (f.length !== 5) return '✗ needs exactly 5 fields'
+  const [min, hour, dom, month, dow] = f
+  const dowMap = { '1-5': 'weekdays', '0,6': 'weekends', '*': 'every day', '0': 'Sundays', '6': 'Saturdays' }
+  const day = dowMap[dow] ?? `dow ${dow}`
+  if (/^\d+$/.test(min) && /^\d+$/.test(hour)) {
+    return `→ at ${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')} on ${day}`
+  }
+  return `→ min=${min} hour=${hour} · ${day}`
 }
 
 // ── Monochrome pill toggle ────────────────────────────────────────────────────
@@ -182,7 +196,14 @@ function ResetModal({ onClose, onConfirm, resetting }) {
 // ── Main panel ────────────────────────────────────────────────────────────────
 function DemoPanel({ onResetRequest }) {
   const { role, authRequired } = useAuth()
+  const { showToast } = useToast()
   const isAdmin = !authRequired || role === 'admin'
+
+  // Scheduled replay (Phase 7)
+  const [schedule, setScheduleState]   = useState(null)
+  const [showSchedModal, setShowSched] = useState(false)
+  const [cronInput, setCronInput]      = useState('0 9 * * 1-5')
+  const [schedSaving, setSchedSaving]  = useState(false)
 
   const [selected, setSelected]   = useState('random')
   const [firing, setFiring]       = useState(false)
@@ -215,7 +236,7 @@ function DemoPanel({ onResetRequest }) {
 
   useEffect(() => {
     refreshStatus()
-    const iv = setInterval(refreshStatus, 5000)
+    const iv = setInterval(refreshStatus, 10000)
     return () => clearInterval(iv)
   }, [refreshStatus])
 
@@ -227,7 +248,10 @@ function DemoPanel({ onResetRequest }) {
     return () => clearTimeout(t)
   }, [status?.enabled, countdown])
 
-  // ── Scenario status polling ─────────────────────────────────────────────────
+  // ── Scenario status polling — fast (2 s) when running, slow (10 s) when idle
+  const scenarioRunningRef = useRef(false)
+  scenarioRunningRef.current = scenarioStatus.is_running
+
   useEffect(() => {
     const poll = async () => {
       try {
@@ -236,11 +260,13 @@ function DemoPanel({ onResetRequest }) {
       } catch {}
     }
     poll()
-    const iv = setInterval(poll, 2000)
+    // Adaptive interval: re-run this effect whenever running state flips
+    const interval = scenarioRunningRef.current ? 2000 : 10000
+    const iv = setInterval(poll, interval)
     return () => clearInterval(iv)
-  }, [])
+  }, [scenarioStatus.is_running])
 
-  // ── Quick stats polling ─────────────────────────────────────────────────────
+  // ── Quick stats polling — 10 s is fine; stats are not latency-sensitive
   useEffect(() => {
     const poll = async () => {
       try {
@@ -254,9 +280,10 @@ function DemoPanel({ onResetRequest }) {
         })
       } catch {}
     }
-    poll()
-    const iv = setInterval(poll, 5000)
-    return () => clearInterval(iv)
+    const delay = Math.random() * 2000
+    const t = setTimeout(() => { poll(); }, delay)
+    const iv = setInterval(poll, 10000)
+    return () => { clearTimeout(t); clearInterval(iv) }
   }, [])
 
   // ── Toggle ──────────────────────────────────────────────────────────────────
@@ -333,6 +360,44 @@ function DemoPanel({ onResetRequest }) {
     }
   }, [])
 
+  // ── Scheduled replay polling (Phase 7) ───────────────────────────────────────
+  const refreshSchedule = useCallback(async () => {
+    try {
+      const s = await fetchScheduleStatus()
+      if (s) { setScheduleState(s); if (s.cron) setCronInput(s.cron) }
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    refreshSchedule()
+    const iv = setInterval(refreshSchedule, 30000)
+    return () => clearInterval(iv)
+  }, [refreshSchedule])
+
+  const handleSetSchedule = useCallback(async () => {
+    setSchedSaving(true)
+    try {
+      const s = await setSchedule(cronInput.trim())
+      setScheduleState(s)
+      setShowSched(false)
+      showToast('Schedule saved — ' + (s.human || cronInput), 'success')
+    } catch (e) {
+      showToast(e.message || 'Invalid cron expression', 'error')
+    } finally {
+      setSchedSaving(false)
+    }
+  }, [cronInput, showToast])
+
+  const handleDisableSchedule = useCallback(async () => {
+    try {
+      const s = await disableSchedule()
+      setScheduleState(s)
+      showToast('Scheduled replay disabled', 'info')
+    } catch (e) {
+      showToast(e.message, 'error')
+    }
+  }, [showToast])
+
   const enabled    = status?.enabled ?? false
   const lastResult = last ?? status?.last_triggered
   const scenarioRunning = scenarioStatus?.is_running
@@ -357,6 +422,35 @@ function DemoPanel({ onResetRequest }) {
           onConfirm={handleReset}
           resetting={resetting}
         />
+      )}
+
+      {showSchedModal && (
+        <div onClick={() => setShowSched(false)} style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: '14px', padding: '24px 28px', maxWidth: '360px', width: '90%', boxShadow: '0 8px 40px rgba(0,0,0,0.9)', fontFamily: "'IBM Plex Mono',monospace" }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+              <Calendar size={14} style={{ color: T.text }} />
+              <span style={{ fontSize: '12px', fontWeight: 700, color: T.text, fontFamily: "'Space Grotesk',sans-serif" }}>Schedule Scenario Replay</span>
+            </div>
+            <p style={{ fontSize: '10px', color: T.muted, lineHeight: '1.6', margin: '0 0 14px' }}>
+              5-field cron — min hour day-of-month month day-of-week.
+            </p>
+            <input
+              value={cronInput}
+              onChange={e => setCronInput(e.target.value)}
+              placeholder="0 9 * * 1-5"
+              style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: `1px solid ${T.border}`, borderRadius: '8px', color: T.text, padding: '9px 11px', fontSize: '13px', fontFamily: "'IBM Plex Mono',monospace", boxSizing: 'border-box', marginBottom: '8px' }}
+            />
+            <div style={{ fontSize: '10px', color: T.dim, marginBottom: '16px' }}>
+              {cronPreview(cronInput)}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={() => setShowSched(false)} style={{ flex: 1, padding: '8px', background: 'rgba(255,255,255,0.06)', border: `1px solid ${T.border}`, borderRadius: '8px', color: T.muted, fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={handleSetSchedule} disabled={schedSaving} style={{ flex: 1, padding: '8px', background: 'rgba(255,255,255,0.12)', border: `1px solid rgba(255,255,255,0.28)`, borderRadius: '8px', color: T.text, fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', fontWeight: 700, cursor: schedSaving ? 'not-allowed' : 'pointer', opacity: schedSaving ? 0.6 : 1 }}>
+                {schedSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div style={{
@@ -495,6 +589,46 @@ function DemoPanel({ onResetRequest }) {
             {scenarioRunning ? <Square size={9} /> : <Play size={9} />}
             {scenarioLoading ? '…' : scenarioRunning ? 'Stop Scenario' : 'Launch Scenario'}
           </button>
+        </div>
+
+        {/* ══════════════════════════════════════════════════════ */}
+        {/* SCHEDULED REPLAY (Phase 7) */}
+        <div style={divider} />
+        <div style={sectionHead}>Scheduled Replay</div>
+
+        <div style={{
+          background: 'rgba(255,255,255,0.03)', border: `1px solid ${T.border}`,
+          borderRadius: '8px', padding: '10px 12px', marginBottom: '8px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+            <Calendar size={11} style={{ color: schedule?.enabled ? 'rgba(255,255,255,0.9)' : T.dim }} />
+            <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 700, color: schedule?.enabled ? T.text : T.muted, letterSpacing: '0.04em' }}>
+              {schedule?.enabled ? 'ACTIVE' : 'OFF'}
+            </span>
+            <span style={{ marginLeft: 'auto', fontFamily: "'IBM Plex Mono',monospace", fontSize: '9px', color: T.dim }}>
+              {schedule?.total_runs ?? 0} runs
+            </span>
+          </div>
+          <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '9px', color: T.muted, marginBottom: '2px', letterSpacing: '0.02em' }}>
+            {schedule?.enabled ? (schedule?.human || schedule?.cron) : 'no schedule set'}
+          </div>
+          {schedule?.enabled && schedule?.next_run && (
+            <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '9px', color: T.dim, marginBottom: '6px' }}>
+              next: {new Date(schedule.next_run).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            </div>
+          )}
+          {isAdmin && (
+            <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
+              <button onClick={() => setShowSched(true)} style={smallBtn()}>
+                Set Schedule
+              </button>
+              {schedule?.enabled && (
+                <button onClick={handleDisableSchedule} style={smallBtn({ flex: '0 0 auto', padding: '7px 10px' })}>
+                  Off
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ══════════════════════════════════════════════════════ */}

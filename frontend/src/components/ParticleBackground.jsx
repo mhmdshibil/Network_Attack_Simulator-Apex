@@ -16,6 +16,22 @@ export default function ParticleBackground() {
     if (!canvas) return
     const ctx = canvas.getContext('2d')
 
+    // ── Theme-aware palette (Phase 7 Task 1) ────────────────────────────────
+    // Dark: black bg + white dots/glow. Light: light bg + ink dots/glow.
+    const theme = { dark: true }
+    function readTheme() {
+      theme.dark = (document.documentElement.dataset.theme || 'dark') !== 'light'
+    }
+    readTheme()
+    const bgColor  = () => (theme.dark ? '#000000' : '#f4f4f4')
+    const rgb      = () => (theme.dark ? '255,255,255' : '0,0,0')
+    // Light-mode dots are subtler so they don't over-darken the page.
+    const dotScale = () => (theme.dark ? 1 : 0.5)
+
+    // Update palette live when the theme attribute changes.
+    const themeObserver = new MutationObserver(readTheme)
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+
     function resize() {
       canvas.width  = window.innerWidth
       canvas.height = window.innerHeight
@@ -36,15 +52,15 @@ export default function ParticleBackground() {
 
     if (reduced) {
       // Static snapshot — draw once, no animation
-      ctx.fillStyle = '#000'
+      ctx.fillStyle = bgColor()
       ctx.fillRect(0, 0, W, H)
       stateRef.current.particles.forEach(p => {
         ctx.beginPath()
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(255,255,255,${p.alpha})`
+        ctx.fillStyle = `rgba(${rgb()},${p.alpha * dotScale()})`
         ctx.fill()
       })
-      return () => window.removeEventListener('resize', resize)
+      return () => { window.removeEventListener('resize', resize); themeObserver.disconnect() }
     }
 
     function spawnFlare(detail) {
@@ -76,19 +92,21 @@ export default function ParticleBackground() {
 
     function draw(now) {
       const W = canvas.width, H = canvas.height
-      // Pure black background
-      ctx.fillStyle = '#000000'
+      const C = rgb()
+      // Theme-aware background
+      ctx.fillStyle = bgColor()
       ctx.fillRect(0, 0, W, H)
 
       // Drifting dots
+      const ds = dotScale()
       stateRef.current.particles.forEach(p => {
         ctx.beginPath()
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(255,255,255,${p.alpha})`
+        ctx.fillStyle = `rgba(${C},${p.alpha * ds})`
         ctx.fill()
       })
 
-      // Detection flares (bright radial glow)
+      // Detection flares (radial glow)
       stateRef.current.flares = stateRef.current.flares.filter(f => {
         const age = now - f.born
         if (age > FLARE_LIFETIME) return false
@@ -96,9 +114,9 @@ export default function ParticleBackground() {
         const alpha = (1 - t) * f.intensity
         const r     = f.size * (1 + t * 2.5)
         const g     = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, r)
-        g.addColorStop(0,   `rgba(255,255,255,${alpha})`)
-        g.addColorStop(0.4, `rgba(255,255,255,${alpha * 0.4})`)
-        g.addColorStop(1,   'rgba(255,255,255,0)')
+        g.addColorStop(0,   `rgba(${C},${alpha})`)
+        g.addColorStop(0.4, `rgba(${C},${alpha * 0.4})`)
+        g.addColorStop(1,   `rgba(${C},0)`)
         ctx.beginPath()
         ctx.arc(f.x, f.y, r, 0, Math.PI * 2)
         ctx.fillStyle = g
@@ -116,7 +134,7 @@ export default function ParticleBackground() {
         const lw      = 1.5 * (1 - t * 0.7)
         ctx.beginPath()
         ctx.arc(r.x, r.y, radius, 0, Math.PI * 2)
-        ctx.strokeStyle = `rgba(255,255,255,${alpha})`
+        ctx.strokeStyle = `rgba(${C},${alpha})`
         ctx.lineWidth   = lw
         ctx.stroke()
         return true
@@ -139,6 +157,7 @@ export default function ParticleBackground() {
     return () => {
       window.removeEventListener('resize', resize)
       window.removeEventListener('apex:detection', onDetection)
+      themeObserver.disconnect()
       if (stateRef.current.raf) cancelAnimationFrame(stateRef.current.raf)
     }
   }, [])
@@ -146,6 +165,7 @@ export default function ParticleBackground() {
   return (
     <canvas
       ref={canvasRef}
+      className="particle-canvas"
       style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none' }}
     />
   )

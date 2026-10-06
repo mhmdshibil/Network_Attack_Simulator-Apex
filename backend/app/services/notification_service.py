@@ -125,6 +125,7 @@ class NotificationService:
         slack_status = self._send_slack(detection, reason)
         email_status = self._send_email(detection, reason)
         self._append_log(detection, reason, slack_status, email_status)
+        self._send_push(detection)
 
     def _can_slack(self) -> bool:
         now = time.monotonic()
@@ -253,6 +254,24 @@ class NotificationService:
                 s.sendmail(SMTP_USER, [ALERT_EMAIL_TO], msg.as_string())
         except Exception as e:
             print(f"[NOTIFY] Email send failed: {e}")
+
+    def _send_push(self, detection: dict) -> None:
+        label  = detection.get("label", "unknown").replace("_", " ").title()
+        ip     = detection.get("ip", "—")
+        action = detection.get("action", "monitored")
+        source_ip = detection.get("ip", "")
+        tag = f"detection-{source_ip}"
+        try:
+            from backend.app.services.push_service import push_service
+            from backend.app.core.database import run_async_bg
+            run_async_bg(push_service.send_to_all(
+                title=f"🚨 {label} Detected",
+                body=f"From {ip} — {action}",
+                url=os.getenv("FRONTEND_URL", "http://localhost:3000"),
+                tag=tag,
+            ))
+        except Exception:
+            pass
 
     # ── Test helpers ─────────────────────────────────────────────────────────
 

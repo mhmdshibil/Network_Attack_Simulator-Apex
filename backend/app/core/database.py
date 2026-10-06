@@ -276,8 +276,8 @@ def _sla_status(case) -> str:
     return "ok"
 
 
-def _triage_to_dict(case) -> dict:
-    return {
+def _triage_to_dict(case, *, include_notes: bool = False) -> dict:
+    d = {
         "id": case.id,
         "detection_id": case.detection_id,
         "source_ip": case.source_ip,
@@ -285,13 +285,15 @@ def _triage_to_dict(case) -> dict:
         "severity": case.severity,
         "status": case.status,
         "assigned_to": case.assigned_to,
-        "notes": case.notes,
         "created_at":   _as_utc(case.created_at).isoformat()   if case.created_at   else None,
         "updated_at":   _as_utc(case.updated_at).isoformat()   if case.updated_at   else None,
         "resolved_at":  _as_utc(case.resolved_at).isoformat()  if case.resolved_at  else None,
         "sla_deadline": _as_utc(case.sla_deadline).isoformat() if case.sla_deadline else None,
         "sla_status": _sla_status(case),
     }
+    if include_notes:
+        d["notes"] = case.notes
+    return d
 
 
 async def create_triage_case(**kw) -> dict:
@@ -342,7 +344,7 @@ async def get_triage_case(case_id: str) -> Optional[dict]:
     _, sm = _init_engine()
     async with sm() as s:
         case = await s.get(TriageCase, case_id)
-        return _triage_to_dict(case) if case else None
+        return _triage_to_dict(case, include_notes=True) if case else None
 
 
 async def update_triage_case(case_id: str, **updates) -> Optional[dict]:
@@ -360,7 +362,7 @@ async def update_triage_case(case_id: str, **updates) -> Optional[dict]:
         case.updated_at = datetime.now(timezone.utc)
         await s.commit()
         await s.refresh(case)
-        return _triage_to_dict(case)
+        return _triage_to_dict(case, include_notes=True)
 
 
 async def get_triage_stats() -> dict:
@@ -473,3 +475,298 @@ async def get_all_geo_cache() -> list:
             }
             for r in result.scalars().all()
         ]
+
+
+# ── Campaign helpers (Phase 5B) ──────────────────────────────────────────────
+
+def _campaign_to_dict(c, *, include_detection_ids: bool = False) -> dict:
+    d = {
+        "id": c.id,
+        "source_ip": c.source_ip,
+        "campaign_type": c.campaign_type,
+        "stage_count": c.stage_count,
+        "attack_types": c.attack_types or [],
+        "started_at":   _as_utc(c.started_at).isoformat()   if c.started_at   else None,
+        "last_seen_at": _as_utc(c.last_seen_at).isoformat() if c.last_seen_at else None,
+        "ended_at":     _as_utc(c.ended_at).isoformat()     if c.ended_at     else None,
+        "status": c.status,
+        "severity": c.severity,
+        "total_detections": c.total_detections,
+        "mitre_stages": c.mitre_stages or [],
+        "geo_country": c.geo_country,
+    }
+    if include_detection_ids:
+        d["detection_ids"] = c.detection_ids or []
+    return d
+
+
+async def create_campaign(**kw) -> dict:
+    from backend.app.models.campaign_model import Campaign
+    _, sm = _init_engine()
+    now = datetime.now(timezone.utc)
+    async with sm() as s:
+        c = Campaign(
+            id=kw.get("id") or str(uuid.uuid4()),
+            source_ip=kw.get("source_ip"),
+            campaign_type=kw.get("campaign_type"),
+            stage_count=int(kw.get("stage_count") or 0),
+            attack_types=kw.get("attack_types") or [],
+            detection_ids=kw.get("detection_ids") or [],
+            started_at=_parse_dt(kw.get("started_at")) if kw.get("started_at") else now,
+            last_seen_at=_parse_dt(kw.get("last_seen_at")) if kw.get("last_seen_at") else now,
+            status=kw.get("status") or "active",
+            severity=kw.get("severity") or "medium",
+            total_detections=int(kw.get("total_detections") or 0),
+            mitre_stages=kw.get("mitre_stages") or [],
+            geo_country=kw.get("geo_country"),
+        )
+        s.add(c)
+        await s.commit()
+        await s.refresh(c)
+        return _campaign_to_dict(c)
+
+
+async def update_campaign(campaign_id: str, **updates) -> Optional[dict]:
+    from backend.app.models.campaign_model import Campaign
+    _, sm = _init_engine()
+    async with sm() as s:
+        c = await s.get(Campaign, campaign_id)
+        if c is None:
+            return None
+        for key, value in updates.items():
+            if key in ("started_at", "last_seen_at", "ended_at") and isinstance(value, str):
+                value = _parse_dt(value)
+            if hasattr(c, key):
+                setattr(c, key, value)
+        await s.commit()
+        await s.refresh(c)
+        return _campaign_to_dict(c)
+
+
+async def get_campaigns(status: Optional[str] = None, limit: int = 50) -> list:
+    from backend.app.models.campaign_model import Campaign
+    _, sm = _init_engine()
+    async with sm() as s:
+        q = sa_select(Campaign).order_by(Campaign.started_at.desc())
+        if status:
+            q = q.where(Campaign.status == status)
+        q = q.limit(limit)
+        result = await s.execute(q)
+        return [_campaign_to_dict(c) for c in result.scalars().all()]
+
+
+async def get_campaign(campaign_id: str) -> Optional[dict]:
+    from backend.app.models.campaign_model import Campaign
+    _, sm = _init_engine()
+    async with sm() as s:
+        c = await s.get(Campaign, campaign_id)
+        return _campaign_to_dict(c, include_detection_ids=True) if c else None
+
+
+async def get_active_campaigns() -> list:
+    return await get_campaigns(status="active", limit=200)
+
+
+async def get_active_campaign_by_ip(ip: str) -> Optional[dict]:
+    from backend.app.models.campaign_model import Campaign
+    _, sm = _init_engine()
+    async with sm() as s:
+        q = (
+            sa_select(Campaign)
+            .where(Campaign.source_ip == ip, Campaign.status == "active")
+            .order_by(Campaign.started_at.desc())
+            .limit(1)
+        )
+        result = await s.execute(q)
+        c = result.scalars().first()
+        return _campaign_to_dict(c) if c else None
+
+
+async def get_campaign_stats() -> dict:
+    from backend.app.models.campaign_model import Campaign
+    _, sm = _init_engine()
+    async with sm() as s:
+        result = await s.execute(sa_select(Campaign))
+        all_c = result.scalars().all()
+
+        total = len(all_c)
+        active = sum(1 for c in all_c if c.status == "active")
+        completed = total - active
+
+        # avg duration (minutes) over completed campaigns with an ended_at
+        durations = []
+        for c in all_c:
+            if c.ended_at and c.started_at:
+                durations.append((_as_utc(c.ended_at) - _as_utc(c.started_at)).total_seconds() / 60)
+        avg_duration = round(sum(durations) / len(durations), 1) if durations else None
+
+        # top attacker + most common type
+        ip_counts: dict = {}
+        type_counts: dict = {}
+        for c in all_c:
+            ip_counts[c.source_ip] = ip_counts.get(c.source_ip, 0) + 1
+            type_counts[c.campaign_type] = type_counts.get(c.campaign_type, 0) + 1
+        top_ip = max(ip_counts, key=ip_counts.get) if ip_counts else None
+        top_type = max(type_counts, key=type_counts.get) if type_counts else None
+
+        return {
+            "total_campaigns": total,
+            "active_campaigns": active,
+            "completed_campaigns": completed,
+            "avg_duration_minutes": avg_duration,
+            "top_attacker_ip": top_ip,
+            "most_common_type": top_type,
+        }
+
+
+# ── CVE helpers (Phase 5C) ───────────────────────────────────────────────────
+
+def _cve_to_dict(c) -> dict:
+    return {
+        "cve_id": c.cve_id,
+        "vendor_project": c.vendor_project,
+        "product": c.product,
+        "vulnerability_name": c.vulnerability_name,
+        "date_added": c.date_added.isoformat() if c.date_added else None,
+        "short_description": c.short_description,
+        "required_action": c.required_action,
+        "due_date": c.due_date.isoformat() if c.due_date else None,
+        "known_ransomware": bool(c.known_ransomware),
+        "search_text": c.search_text,
+    }
+
+
+async def upsert_cves(cve_list: list) -> int:
+    """Bulk upsert CVE entries. Each item is a dict with the KEV fields."""
+    from backend.app.models.cve_model import CVEEntry
+    from datetime import date as _date
+    _, sm = _init_engine()
+
+    def _parse_date(v):
+        if not v:
+            return None
+        try:
+            return _date.fromisoformat(str(v)[:10])
+        except Exception:
+            return None
+
+    count = 0
+    async with sm() as s:
+        for item in cve_list:
+            cid = item.get("cve_id")
+            if not cid:
+                continue
+            row = await s.get(CVEEntry, cid)
+            if row is None:
+                row = CVEEntry(cve_id=cid)
+                s.add(row)
+            row.vendor_project     = item.get("vendor_project")
+            row.product            = item.get("product")
+            row.vulnerability_name = item.get("vulnerability_name")
+            row.date_added         = _parse_date(item.get("date_added"))
+            row.short_description  = item.get("short_description")
+            row.required_action    = item.get("required_action")
+            row.due_date           = _parse_date(item.get("due_date"))
+            row.known_ransomware   = bool(item.get("known_ransomware"))
+            row.search_text        = item.get("search_text")
+            row.updated_at         = datetime.now(timezone.utc)
+            count += 1
+        await s.commit()
+    return count
+
+
+async def get_all_cves() -> list:
+    from backend.app.models.cve_model import CVEEntry
+    _, sm = _init_engine()
+    async with sm() as s:
+        result = await s.execute(sa_select(CVEEntry))
+        return [_cve_to_dict(c) for c in result.scalars().all()]
+
+
+async def get_cve(cve_id: str) -> Optional[dict]:
+    from backend.app.models.cve_model import CVEEntry
+    _, sm = _init_engine()
+    async with sm() as s:
+        c = await s.get(CVEEntry, cve_id)
+        return _cve_to_dict(c) if c else None
+
+
+async def get_recent_cves(days: int = 30) -> list:
+    from backend.app.models.cve_model import CVEEntry
+    from datetime import date as _date, timedelta as _td
+    _, sm = _init_engine()
+    cutoff = _date.today() - _td(days=days)
+    async with sm() as s:
+        q = (
+            sa_select(CVEEntry)
+            .where(CVEEntry.date_added >= cutoff)
+            .order_by(CVEEntry.date_added.desc())
+        )
+        result = await s.execute(q)
+        return [_cve_to_dict(c) for c in result.scalars().all()]
+
+
+async def link_cve_to_detection(detection_id: str, cve_id: str, relevance: float) -> None:
+    from backend.app.models.cve_model import CVEDetection
+    _, sm = _init_engine()
+    async with sm() as s:
+        s.add(CVEDetection(
+            detection_id=detection_id,
+            cve_id=cve_id,
+            relevance_score=float(relevance) if relevance is not None else None,
+            matched_at=datetime.now(timezone.utc),
+        ))
+        await s.commit()
+
+
+async def get_cve_stats() -> dict:
+    from backend.app.models.cve_model import CVEEntry
+    from datetime import date as _date, timedelta as _td
+    _, sm = _init_engine()
+    cutoff = _date.today() - _td(days=30)
+    async with sm() as s:
+        result = await s.execute(sa_select(CVEEntry))
+        all_c = result.scalars().all()
+
+        total = len(all_c)
+        ransomware = sum(1 for c in all_c if c.known_ransomware)
+        recent = sum(1 for c in all_c if c.date_added and c.date_added >= cutoff)
+        last_updated = max((c.updated_at for c in all_c if c.updated_at), default=None)
+
+        vendor_counts: dict = {}
+        for c in all_c:
+            v = c.vendor_project or "Unknown"
+            vendor_counts[v] = vendor_counts.get(v, 0) + 1
+        top_vendors = [
+            {"vendor": v, "count": n}
+            for v, n in sorted(vendor_counts.items(), key=lambda kv: kv[1], reverse=True)[:10]
+        ]
+
+        return {
+            "total_cves": total,
+            "last_updated": _as_utc(last_updated).isoformat() if last_updated else None,
+            "ransomware_count": ransomware,
+            "recent_30_days": recent,
+            "top_vendors": top_vendors,
+        }
+
+
+async def complete_stale_campaigns(max_idle_seconds: int = 1800) -> list:
+    """Mark active campaigns idle for > max_idle_seconds as completed.
+    Returns the list of campaigns that were just completed."""
+    from backend.app.models.campaign_model import Campaign
+    _, sm = _init_engine()
+    now = datetime.now(timezone.utc)
+    completed = []
+    async with sm() as s:
+        q = sa_select(Campaign).where(Campaign.status == "active")
+        result = await s.execute(q)
+        for c in result.scalars().all():
+            last = _as_utc(c.last_seen_at) if c.last_seen_at else None
+            if last and (now - last).total_seconds() > max_idle_seconds:
+                c.status = "completed"
+                c.ended_at = now
+                completed.append(_campaign_to_dict(c))
+        if completed:
+            await s.commit()
+    return completed

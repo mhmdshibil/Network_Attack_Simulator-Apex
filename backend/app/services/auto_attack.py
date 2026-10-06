@@ -77,7 +77,7 @@ def _run_cycle() -> int:
 
     _RAW_DIR.mkdir(parents=True, exist_ok=True)
 
-    if TRAFFIC_PROFILE in ("org", "college"):
+    if TRAFFIC_PROFILE == "org":
         # Org profile owns the whole window; clear stale files first so the
         # raw dir holds only the 10-column org schema.
         _clear_raw_dir()

@@ -1,23 +1,18 @@
 /**
  * GeoMap — Phase 5A: live world map of attacking IPs.
  *
- * Map approach: centroid-circle dot-grid.
- * Each country is represented by a semi-transparent circle centred on its
- * geographic centroid, sized proportionally to approximate land area.
- * This avoids embedding 200 KB+ of SVG path data while still providing clear
- * geographic context. Attack point markers overlay the map at exact lat/lon.
- *
- * Coordinate projection (equirectangular, viewBox "0 0 1000 500"):
- *   x = (lon + 180) × (1000 / 360)
- *   y = (90 − lat)  × (500 / 180)
+ * Perf fixes applied:
+ *  - MAX_MARKERS = 150; batch-evict oldest 50 when cap exceeded
+ *  - WS detections batched for 2 s before flushing to state (one re-render)
+ *  - Country circles wrapped in React.memo — only re-render when their count changes
+ *  - Pulse timers and batch timer cleared on unmount (no leaks)
  */
-import React, { useState, useCallback, useEffect, useRef } from 'react'
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useDetectionStream } from '../hooks/useDetectionStream'
 import { getFlag, getCountryName } from '../utils/countryFlags'
 import { fetchGeoAttackers, fetchGeoSummary } from '../api/api'
 import './GeoMap.css'
 
-// [iso_code, lat, lon, radius] — radius ≈ sqrt(land_area) normalised to 4–36
 const COUNTRIES = [
   ['RU', 61.5,  100.0, 34], ['CA', 56.1, -106.3, 28], ['US', 38.0,  -97.0, 26],
   ['CN', 35.0,  103.0, 24], ['BR', -14.2, -51.9, 24], ['AU', -25.3, 133.8, 24],
@@ -41,6 +36,10 @@ const COUNTRIES = [
   ['YE', 15.6,   48.5,  9], ['MA', 32.0,  -5.0,  10], ['TN', 34.0,   9.0,   7],
 ]
 
+const MAX_FEED    = 20
+const MAX_MARKERS = 150   // hard cap; batch-evict 50 oldest when exceeded
+const BATCH_MS    = 2000  // flush WS events every 2 s
+
 function toSvg(lat, lon) {
   return {
     x: (lon + 180) * (1000 / 360),
@@ -63,13 +62,29 @@ function timeAgo(ts) {
   return `${Math.floor(s/3600)}h ago`
 }
 
-const MAX_FEED = 20
-const MAX_POINTS = 400   // cap SVG markers for performance
+function cutoffTime(filter) {
+  if (filter === 'all') return null
+  const h = filter === '1h' ? 1 : 24
+  return new Date(Date.now() - h * 3600 * 1000).toISOString()
+}
+
+// Memoised country circle — only re-renders when its attack count changes
+const CountryCircle = React.memo(function CountryCircle({ code, x, y, r, count, onEnter, onLeave }) {
+  return (
+    <circle
+      cx={x} cy={y} r={r}
+      fill={countryFill(count)}
+      stroke="rgba(255,255,255,0.06)"
+      strokeWidth="0.4"
+      className="country-dot"
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+    />
+  )
+})
 
 export default function GeoMap() {
-  // ip → { lat, lon, country_code, country_name, city, isp, label, count, last_seen, pulse }
   const [attackPoints,  setAttackPoints]  = useState(() => new Map())
-  // country_code → { count, last_seen, country_name }
   const [countryCounts, setCountryCounts] = useState(() => new Map())
   const [summary,       setSummary]       = useState(null)
   const [timeFilter,    setTimeFilter]    = useState('all')
@@ -77,8 +92,65 @@ export default function GeoMap() {
   const [tooltip,       setTooltip]       = useState(null)
   const [recentFeed,    setRecentFeed]    = useState([])
   const pulseTimers = useRef({})
+  const batchRef    = useRef([])
+  const batchTimer  = useRef(null)
 
-  // ── Load historical data on mount ────────────────────────────────────────
+  // Flush the detection batch into a single state update
+  const flushBatch = useCallback(() => {
+    const batch = batchRef.current
+    batchRef.current = []
+    batchTimer.current = null
+    if (batch.length === 0) return
+
+    setAttackPoints(prev => {
+      const next = new Map(prev)
+      batch.forEach(({ ip, geo, label, timestamp }) => {
+        if (!next.has(ip) && next.size >= MAX_MARKERS) {
+          // Evict oldest 50 in one pass
+          const sorted = [...next.entries()].sort(
+            (a, b) => ((a[1].last_seen || '') < (b[1].last_seen || '') ? -1 : 1)
+          )
+          sorted.slice(0, 50).forEach(([k]) => next.delete(k))
+        }
+        const existing = next.get(ip) || { count: 0 }
+        next.set(ip, {
+          lat: geo.lat, lon: geo.lon,
+          country_code: geo.country_code,
+          country_name: geo.country_name || getCountryName(geo.country_code),
+          city: geo.city, isp: geo.isp,
+          label, count: existing.count + 1,
+          last_seen: timestamp, pulse: true,
+        })
+      })
+      return next
+    })
+
+    setCountryCounts(prev => {
+      const next = new Map(prev)
+      batch.forEach(({ geo, timestamp }) => {
+        const cc = geo.country_code
+        if (!cc) return
+        const p = next.get(cc) || { count: 0, last_seen: null, country_name: getCountryName(cc) }
+        next.set(cc, { count: p.count + 1, last_seen: timestamp, country_name: p.country_name })
+      })
+      return next
+    })
+
+    setRecentFeed(prev => {
+      const newItems = batch.map(({ ip, geo, label, timestamp }) => ({
+        id:           `${ip}-${timestamp}`,
+        ip,
+        label,
+        flag:         getFlag(geo.country_code),
+        city:         geo.city,
+        country_code: geo.country_code,
+        timestamp,
+      }))
+      return [...newItems, ...prev].slice(0, MAX_FEED)
+    })
+  }, [])
+
+  // Load historical data on mount / filter change
   useEffect(() => {
     fetchGeoAttackers().then(data => {
       if (!Array.isArray(data)) return
@@ -96,11 +168,7 @@ export default function GeoMap() {
         const cc = d.country_code
         if (cc) {
           const prev = counts.get(cc) || { count: 0, last_seen: null, country_name: getCountryName(cc) }
-          counts.set(cc, {
-            count: prev.count + d.count,
-            last_seen: d.last_seen,
-            country_name: prev.country_name,
-          })
+          counts.set(cc, { count: prev.count + d.count, last_seen: d.last_seen, country_name: prev.country_name })
         }
       })
       setAttackPoints(points)
@@ -110,78 +178,69 @@ export default function GeoMap() {
     fetchGeoSummary().then(d => { if (d) setSummary(d) }).catch(() => {})
   }, [timeFilter]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Real-time WebSocket updates ───────────────────────────────────────────
+  // Cleanup on unmount — prevent memory leaks from dangling timers
+  useEffect(() => {
+    return () => {
+      Object.values(pulseTimers.current).forEach(clearTimeout)
+      if (batchTimer.current) clearTimeout(batchTimer.current)
+    }
+  }, [])
+
+  // Real-time WebSocket updates — batched
   const onDetection = useCallback((det) => {
+    if (det.type !== 'detection') return
     if (!isLive) return
     const geo = det.geo
     if (!geo || geo.lat == null) return
 
     const ip = det.ip
-    const cc = geo.country_code
+    batchRef.current.push({ ip, geo, label: det.label, timestamp: det.timestamp })
 
-    setAttackPoints(prev => {
-      const next = new Map(prev)
-      // Enforce cap — evict oldest if over limit
-      if (!next.has(ip) && next.size >= MAX_POINTS) {
-        const oldest = [...next.entries()].sort((a,b) => (a[1].last_seen||'') - (b[1].last_seen||''))[0]
-        if (oldest) next.delete(oldest[0])
-      }
-      const existing = next.get(ip) || { count: 0 }
-      next.set(ip, {
-        lat: geo.lat, lon: geo.lon,
-        country_code: cc, country_name: geo.country_name || getCountryName(cc),
-        city: geo.city, isp: geo.isp,
-        label: det.label, count: existing.count + 1,
-        last_seen: det.timestamp, pulse: true,
-      })
-      return next
-    })
-
-    if (cc) {
-      setCountryCounts(prev => {
-        const next = new Map(prev)
-        const p = next.get(cc) || { count: 0, last_seen: null, country_name: getCountryName(cc) }
-        next.set(cc, { count: p.count + 1, last_seen: det.timestamp, country_name: p.country_name })
-        return next
-      })
-    }
-
-    setRecentFeed(prev => [{
-      id: `${ip}-${det.timestamp}`,
-      ip, label: det.label, flag: getFlag(cc),
-      city: geo.city, country_code: cc, timestamp: det.timestamp,
-    }, ...prev].slice(0, MAX_FEED))
-
-    // Remove pulse after animation completes
+    // Per-IP pulse clear after animation
     clearTimeout(pulseTimers.current[ip])
     pulseTimers.current[ip] = setTimeout(() => {
       setAttackPoints(prev => {
         const next = new Map(prev)
-        const pt = next.get(ip)
+        const pt   = next.get(ip)
         if (pt) next.set(ip, { ...pt, pulse: false })
         return next
       })
     }, 1500)
-  }, [isLive])
+
+    if (!batchTimer.current) {
+      batchTimer.current = setTimeout(flushBatch, BATCH_MS)
+    }
+  }, [isLive, flushBatch])
 
   useDetectionStream(onDetection)
 
-  // ── Derived stats ─────────────────────────────────────────────────────────
+  // Computed stats (cheap — runs only when maps change)
   const countriesDetected = countryCounts.size
-  const topCountry = [...countryCounts.entries()].sort((a,b) => b[1].count - a[1].count)[0]
-  const attacksMapped = [...attackPoints.values()].reduce((s,p) => s + p.count, 0)
+  const topCountry = useMemo(
+    () => [...countryCounts.entries()].sort((a, b) => b[1].count - a[1].count)[0],
+    [countryCounts]
+  )
+  const attacksMapped = useMemo(
+    () => [...attackPoints.values()].reduce((s, p) => s + p.count, 0),
+    [attackPoints]
+  )
   const coverage = summary ? `${Math.round((summary.coverage_rate || 0) * 100)}%` : '—'
 
-  // ── Sorted countries for table ────────────────────────────────────────────
-  const sortedCountries = [...countryCounts.entries()]
-    .sort((a,b) => b[1].count - a[1].count)
-    .slice(0, 10)
+  const sortedCountries = useMemo(
+    () => [...countryCounts.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 10),
+    [countryCounts]
+  )
+
+  // Static country geometry — computed once
+  const staticCountryData = useMemo(
+    () => COUNTRIES.map(([code, lat, lon, r]) => ({ code, ...toSvg(lat, lon), r })),
+    []
+  )
 
   return (
     <div className="geo-map-page">
       <div className="geo-map-title">Geo Map — Attacker Origins</div>
 
-      {/* Stats bar */}
       <div className="geo-stats">
         <div className="geo-stat-card">
           <div className="geo-stat-label">Countries Detected</div>
@@ -191,9 +250,7 @@ export default function GeoMap() {
         <div className="geo-stat-card">
           <div className="geo-stat-label">Most Active</div>
           <div className="geo-stat-value" style={{ fontSize: '18px' }}>
-            {topCountry
-              ? `${getFlag(topCountry[0])} ${getCountryName(topCountry[0])}`
-              : '—'}
+            {topCountry ? `${getFlag(topCountry[0])} ${getCountryName(topCountry[0])}` : '—'}
           </div>
           <div className="geo-stat-sub">
             {topCountry ? `${topCountry[1].count} attacks` : 'no data yet'}
@@ -211,51 +268,35 @@ export default function GeoMap() {
         </div>
       </div>
 
-      {/* World Map */}
       <div className="geo-map-container">
-        <svg
-          viewBox="0 0 1000 500"
-          className="world-svg"
-          preserveAspectRatio="xMidYMid meet"
-        >
-          {/* Ocean */}
+        <svg viewBox="0 0 1000 500" className="world-svg" preserveAspectRatio="xMidYMid meet">
           <rect x="0" y="0" width="1000" height="500" fill="#070d1a" />
-
-          {/* Grid: equator + prime meridian */}
           <line x1="0" y1="250" x2="1000" y2="250" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" strokeDasharray="4 4" />
           <line x1="500" y1="0" x2="500" y2="500" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" strokeDasharray="4 4" />
 
-          {/* Country centroid circles */}
-          {COUNTRIES.map(([code, lat, lon, r]) => {
-            const { x, y } = toSvg(lat, lon)
-            const cnt = countryCounts.get(code)?.count || 0
-            return (
-              <circle
-                key={code}
-                cx={x} cy={y} r={r}
-                fill={countryFill(cnt)}
-                stroke="rgba(255,255,255,0.06)"
-                strokeWidth="0.4"
-                className="country-dot"
-              />
-            )
-          })}
+          {staticCountryData.map(({ code, x, y, r }) => (
+            <CountryCircle
+              key={code}
+              code={code} x={x} y={y} r={r}
+              count={countryCounts.get(code)?.count || 0}
+              onEnter={undefined}
+              onLeave={undefined}
+            />
+          ))}
 
-          {/* Attack point markers */}
           {[...attackPoints.values()].map((pt) => {
             const { x, y } = toSvg(pt.lat, pt.lon)
+            const key = pt.ip || `${pt.lat}-${pt.lon}`
             return (
               <g
-                key={pt.ip || `${pt.lat}-${pt.lon}`}
+                key={key}
                 className="attack-marker"
                 onMouseEnter={(e) => setTooltip({ pt, mx: e.clientX, my: e.clientY })}
                 onMouseLeave={() => setTooltip(null)}
               >
                 {pt.pulse && (
                   <circle cx={x} cy={y} r="5" fill="none"
-                    stroke="#ff4444" strokeWidth="1.5"
-                    className="pulse-ring"
-                  />
+                    stroke="#ff4444" strokeWidth="1.5" className="pulse-ring" />
                 )}
                 <circle
                   cx={x} cy={y}
@@ -270,33 +311,24 @@ export default function GeoMap() {
           })}
         </svg>
 
-        {/* Controls */}
         <div className="geo-controls">
           <div className="geo-live-indicator">
             <span className={`geo-live-dot ${isLive ? 'blinking' : 'paused'}`} />
             {isLive ? 'LIVE' : 'PAUSED'}
           </div>
-          <button
-            className={`geo-ctrl-btn ${isLive ? 'active' : ''}`}
-            onClick={() => setIsLive(v => !v)}
-          >
+          <button className={`geo-ctrl-btn ${isLive ? 'active' : ''}`} onClick={() => setIsLive(v => !v)}>
             {isLive ? 'Pause' : 'Resume'}
           </button>
           {['1h', '24h', 'all'].map(f => (
-            <button
-              key={f}
-              className={`geo-ctrl-btn ${timeFilter === f ? 'active' : ''}`}
-              onClick={() => setTimeFilter(f)}
-            >
+            <button key={f} className={`geo-ctrl-btn ${timeFilter === f ? 'active' : ''}`}
+              onClick={() => setTimeFilter(f)}>
               {f === 'all' ? 'ALL' : `Last ${f}`}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Bottom: countries table + live feed */}
       <div className="geo-bottom">
-        {/* Top countries */}
         <div className="geo-countries-card">
           <div className="geo-card-header">Top Countries</div>
           {sortedCountries.length === 0 ? (
@@ -304,20 +336,14 @@ export default function GeoMap() {
           ) : (
             <table className="geo-table">
               <thead>
-                <tr>
-                  <th>Country</th>
-                  <th>Attacks</th>
-                  <th>Last Seen</th>
-                </tr>
+                <tr><th>Country</th><th>Attacks</th><th>Last Seen</th></tr>
               </thead>
               <tbody>
                 {sortedCountries.map(([code, info]) => (
                   <tr key={code}>
                     <td>{getFlag(code)} {info.country_name || getCountryName(code)}</td>
                     <td><span className="geo-count-badge">{info.count}</span></td>
-                    <td style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)' }}>
-                      {timeAgo(info.last_seen)}
-                    </td>
+                    <td style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)' }}>{timeAgo(info.last_seen)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -325,7 +351,6 @@ export default function GeoMap() {
           )}
         </div>
 
-        {/* Live geo feed */}
         <div className="geo-feed-card">
           <div className="geo-card-header">Recent Geolocated Attacks</div>
           {recentFeed.length === 0 ? (
@@ -351,7 +376,6 @@ export default function GeoMap() {
         </div>
       </div>
 
-      {/* Tooltip */}
       {tooltip && (
         <div className="geo-tooltip" style={{ left: tooltip.mx + 12, top: tooltip.my - 8 }}>
           <div className="geo-tooltip-label">{tooltip.pt.label?.replace(/_/g, ' ')}</div>
@@ -363,18 +387,10 @@ export default function GeoMap() {
             {tooltip.pt.ip} · {tooltip.pt.count} attack{tooltip.pt.count !== 1 ? 's' : ''}
           </div>
           {tooltip.pt.isp && (
-            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)' }}>
-              {tooltip.pt.isp}
-            </div>
+            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)' }}>{tooltip.pt.isp}</div>
           )}
         </div>
       )}
     </div>
   )
-}
-
-function cutoffTime(filter) {
-  if (filter === 'all') return null
-  const h = filter === '1h' ? 1 : 24
-  return new Date(Date.now() - h * 3600 * 1000).toISOString()
 }

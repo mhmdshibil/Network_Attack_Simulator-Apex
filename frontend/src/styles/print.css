@@ -1,0 +1,32 @@
+/* ============================================================================
+   print.css — Phase 7 Task 5a
+   Clean print / "Export PDF" layout. Hides chrome, forces light ink on white.
+   ============================================================================ */
+
+@media print {
+  .navbar, .sidebar, .demo-panel, .narrative-overlay,
+  .push-bell, .nlq-wrap, .filter-bar, .particle-canvas,
+  canvas,
+  .btn:not(.print-keep) { display: none !important; }
+
+  .main-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+    padding: 0 !important;
+  }
+
+  html, body { background: white !important; }
+
+  .card, .chart-container, .table-container, .metric-card,
+  .data-table th, .data-table td,
+  .table th, .table td {
+    background: white !important;
+    color: black !important;
+    border-color: #ccc !important;
+    box-shadow: none !important;
+  }
+
+  table { page-break-inside: avoid; }
+
+  .page-title::before { content: "Apex Argus — "; }
+}

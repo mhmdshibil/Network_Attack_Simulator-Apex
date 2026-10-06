@@ -113,7 +113,27 @@ Copy `.env.example` to `.env` and configure before starting.
 
 | Variable | Description |
 |----------|-------------|
-| `ANTHROPIC_API_KEY` | Claude Haiku incident summaries — degrades gracefully if absent |
+| `ANTHROPIC_API_KEY` | Claude Haiku incident summaries + Natural-Language Query — degrades gracefully if absent |
+
+### Two-Factor Auth (Phase 6)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TOTP_ENABLED` | `false` | When `true`, users with 2FA configured must enter a TOTP code at login |
+
+### Web Push / PWA (Phase 6)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VAPID_PUBLIC_KEY` | — | Public VAPID key (safe to expose; served at `/api/push/vapid-public-key`) |
+| `VAPID_PRIVATE_KEY` | — | Private VAPID key — **keep secret** |
+| `VAPID_EMAIL` | `admin@apex-argus.io` | Contact `mailto:` sent in VAPID claims |
+
+Generate a VAPID key pair once and paste the output into `.env`:
+
+```bash
+python -c "from pywebpush import Vapid; v = Vapid(); v.generate_keys(); print('Public:', v.public_key); print('Private:', v.private_key)"
+```
 
 ### Frontend Build
 
@@ -288,3 +308,46 @@ docker compose -f docker-compose.prod.yml exec -T postgres \
 | Port 5432 already in use | Local PostgreSQL running | Stop local PG or change compose port: `"5433:5432"` in `docker-compose.yml` |
 | `gunicorn: command not found` | Old backend image cached | `docker compose -f docker-compose.prod.yml build --no-cache backend` |
 | Wazuh dashboard unreachable | TLS certs not generated | Run cert generator first: `docker compose -f wazuh/generate-indexer-certs.yml run --rm generator` |
+| 2FA prompt never appears | `TOTP_ENABLED=false` or user hasn't set up 2FA | Set `TOTP_ENABLED=true` and enable 2FA per-user from Settings |
+| Push button shows "Notifications Off" | Browser denied permission / no VAPID keys | Re-grant permission in site settings; set `VAPID_*` keys in `.env` |
+| Webhook test returns `timeout` | Target URL unreachable in 5 s | Verify the URL is publicly reachable from the backend host |
+
+---
+
+## Enabling 2FA (TOTP)
+
+1. Set `TOTP_ENABLED=true` in `.env` and restart the backend.
+2. Log in, then open the **2FA setup** screen. Click **Enable 2FA**.
+3. Scan the QR code with Google Authenticator (or any TOTP app). Save the backup codes shown once.
+4. Enter the current 6-digit code to **Activate**. 2FA is now required at login.
+5. On the next login, after username/password the server returns `requires_2fa` and the UI shows a 6-digit code modal. Enter the code (or a backup code) to receive the full JWT.
+6. Per-user 2FA config is stored in `data/policies/user_2fa.json` (no DB migration needed).
+
+With `TOTP_ENABLED=false` the entire flow is transparent — login returns a JWT directly.
+
+## Configuring Webhooks
+
+1. Open the **Webhooks** page (admin only). Click **Add Webhook**.
+2. Set a name, target URL (`https://…`), and tick the events to receive:
+   `detection`, `campaign`, `baseline_alert`, `triage_resolved`.
+3. (Optional) Set a **secret** — each delivery is then signed with
+   `X-Apex-Signature: sha256=<HMAC-SHA256(secret, body)>` so the receiver can verify authenticity.
+4. Click **Test** to send a sample payload and see the live result (`✓ Delivered (200 OK)` / `✗ Failed`).
+5. Deliveries fire-and-forget with a 5 s timeout and one retry; every attempt is logged to the
+   `webhook_deliveries` table (last 50 viewable via `GET /api/webhooks/{id}/deliveries`).
+
+Outbound headers: `Content-Type: application/json`, `X-Apex-Event`, `X-Apex-Timestamp`, and
+`X-Apex-Signature` (when a secret is set).
+
+## PWA Setup (Install as a Mobile App)
+
+Apex Argus ships a web app manifest (`/manifest.json`) and a service worker (`/sw.js`).
+
+1. Generate VAPID keys (see the Web Push env table above) and add them to `.env`; restart the backend.
+2. Serve the frontend over **HTTPS** (required for service workers and Web Push, except on `localhost`).
+3. In the sidebar footer, click the **bell** icon → grant notification permission.
+   The browser registers the service worker and POSTs its subscription to `/api/push/subscribe`.
+4. **Install:** on mobile Chrome/Safari use *Add to Home Screen*; on desktop Chrome use the install
+   icon in the address bar. The app then launches standalone (no browser chrome).
+5. When a Slack/email alert fires, a push notification is also sent to all subscribers
+   (title `🚨 <Attack> Detected`, deduplicated per source IP via the notification `tag`).

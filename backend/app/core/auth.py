@@ -1,9 +1,14 @@
 """
-JWT authentication — Phase 11.
+JWT authentication — Phase 11 + Phase 6B (2FA).
 
 Controlled by AUTH_ENABLED env var (default: false).
 When disabled, require_analyst / require_admin are no-ops so the
 existing dashboard continues to work without any credential setup.
+
+When TOTP_ENABLED=true and a user has 2FA configured, /api/auth/token
+returns {requires_2fa: true, temp_token: ...} instead of a full JWT.
+The frontend must POST to /api/auth/2fa/verify with the temp_token + code
+to receive the full JWT.
 
 Default credentials (change via env or extend _USERS dict):
   admin / adminpass   → admin role
@@ -12,6 +17,8 @@ Default credentials (change via env or extend _USERS dict):
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+
+TOTP_ENABLED: bool = os.getenv("TOTP_ENABLED", "false").lower() == "true"
 
 from fastapi import Depends, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordBearer

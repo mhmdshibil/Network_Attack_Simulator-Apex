@@ -9,6 +9,7 @@ import { AlertTriangle, X, Zap, Brain } from 'lucide-react'
 import { fetchDetections, fetchExplanation, generateIncidentSummary, API_BASE } from '../api/api'
 import { useDetectionStream } from '../hooks/useDetectionStream'
 import { useAuth } from '../context/AuthContext'
+import NLQBar from '../components/NLQBar'
 
 /* Threat-intel badge colours (explicit hue exception, like NetworkMap):
    0-30 gray (unknown) · 31-70 yellow (suspicious) · 71-100 red (known bad) */
@@ -259,6 +260,10 @@ function DetectedAttacks() {
   const [tiPopover, setTiPopover] = useState(null)   // { ip, x, y, loading, data }
   const [page, setPage] = useState(1)
   const seenRef = useRef(new Set())
+  // NLQ state
+  const [nlqActive, setNlqActive] = useState(false)
+  const [nlqResults, setNlqResults] = useState(null) // {results, count, query, queryMs}
+  const normalAttacks = useRef([])  // original list while NLQ is active
 
   React.useEffect(() => {
     fetchDetections().then(data => {
@@ -296,15 +301,37 @@ function DetectedAttacks() {
 
   useDetectionStream(onDetection)
 
+  const handleNlqResults = useCallback(({ results, count, query, queryMs }) => {
+    normalAttacks.current = attacks
+    setNlqResults({ results, count, query, queryMs })
+    setNlqActive(true)
+    setPage(1)
+  }, [attacks])
+
+  const handleNlqClear = useCallback(() => {
+    setNlqActive(false)
+    setNlqResults(null)
+    setPage(1)
+  }, [])
+
+  const displayAttacks = nlqActive ? (nlqResults?.results || []) : attacks
+
   return (
     <div>
-      <div style={{ marginBottom: '24px' }}>
+      <div style={{ marginBottom: '16px' }}>
         <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 600, color: 'rgba(255,255,255,0.28)', textTransform: 'uppercase', letterSpacing: '0.10em', marginBottom: '5px' }}>
           Detection Log
         </div>
-        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '22px', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '22px', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em', marginBottom: '14px' }}>
           Detected Attacks
         </div>
+        <NLQBar onResults={handleNlqResults} onClear={handleNlqClear} />
+        {nlqActive && nlqResults && (
+          <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: 'rgba(255,255,255,0.45)', marginBottom: '8px' }}>
+            Showing {nlqResults.count} result{nlqResults.count !== 1 ? 's' : ''} for: "{nlqResults.query}"
+            <span style={{ marginLeft: 10, opacity: 0.5 }}>{nlqResults.queryMs}ms</span>
+          </div>
+        )}
       </div>
 
       <div className="table-container">
@@ -324,10 +351,10 @@ function DetectedAttacks() {
           </div>
         </div>
 
-        {attacks.length > 0 ? (() => {
-          const totalPages = Math.ceil(attacks.length / PAGE_SIZE)
+        {displayAttacks.length > 0 ? (() => {
+          const totalPages = Math.ceil(displayAttacks.length / PAGE_SIZE)
           const start = (page - 1) * PAGE_SIZE
-          const pageAttacks = attacks.slice(start, start + PAGE_SIZE)
+          const pageAttacks = displayAttacks.slice(start, start + PAGE_SIZE)
           return (
           <>
           <table className="table">
@@ -337,6 +364,7 @@ function DetectedAttacks() {
                 <th>Source IP</th>
                 <th>Attack Type</th>
                 <th>MITRE</th>
+                <th>CVE</th>
                 <th>Confidence</th>
                 <th>TI Score</th>
                 <th>Action</th>
@@ -381,6 +409,24 @@ function DetectedAttacks() {
                         ? <span className="mitre-badge">{attack.mitre.technique_id}</span>
                         : <span style={{ color: 'rgba(255,255,255,0.22)', fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px' }}>—</span>
                       }
+                    </td>
+                    <td>
+                      {attack.cve_context?.top_cve ? (
+                        <span
+                          title={attack.cve_context.cve_name || attack.cve_context.top_cve}
+                          style={{
+                            fontFamily: "'IBM Plex Mono',monospace", fontSize: '9px',
+                            color: attack.cve_context.ransomware ? '#ff8080' : 'rgba(255,255,255,0.55)',
+                            background: attack.cve_context.ransomware ? 'rgba(255,51,51,0.12)' : 'rgba(255,255,255,0.05)',
+                            border: `1px solid ${attack.cve_context.ransomware ? 'rgba(255,51,51,0.4)' : 'rgba(255,255,255,0.14)'}`,
+                            borderRadius: '6px', padding: '3px 7px', letterSpacing: '0.02em', cursor: 'help',
+                          }}
+                        >
+                          {attack.cve_context.top_cve}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'rgba(255,255,255,0.22)', fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px' }}>—</span>
+                      )}
                     </td>
                     <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: '#fff', fontWeight: w }}>
                       {attack.confidence != null ? `${(attack.confidence * 100).toFixed(0)}%` : 'N/A'}

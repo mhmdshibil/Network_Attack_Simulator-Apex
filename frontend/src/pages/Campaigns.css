@@ -1,0 +1,342 @@
+/* Campaigns — Phase 5B */
+
+.campaigns-page {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.camp-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.45);
+}
+
+/* ── Stat cards ─────────────────────────────────────────────────────────────── */
+.camp-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.camp-stat-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.camp-stat-card.alert {
+  background: rgba(255, 40, 40, 0.10);
+  border-color: rgba(255, 70, 70, 0.45);
+}
+
+.camp-stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.35);
+  margin-bottom: 4px;
+}
+
+.camp-stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.1;
+}
+
+.camp-stat-card.alert .camp-stat-value {
+  color: #ff5555;
+  animation: camp-pulse 1.6s ease-in-out infinite;
+}
+
+.camp-stat-sub {
+  font-size: 10px;
+  color: rgba(255,255,255,0.35);
+  margin-top: 2px;
+}
+
+@keyframes camp-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+
+/* ── Section headers ────────────────────────────────────────────────────────── */
+.camp-section-header {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.camp-section-count {
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: rgba(255,60,60,0.2);
+  color: #ff8080;
+  font-size: 10px;
+}
+
+/* ── Active campaign cards ──────────────────────────────────────────────────── */
+.camp-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 12px;
+}
+
+.camp-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.camp-card.sev-high {
+  border-color: rgba(255, 60, 60, 0.45);
+  background: rgba(255, 40, 40, 0.06);
+}
+
+@keyframes camp-flash {
+  0%   { box-shadow: 0 0 0 0 rgba(255,80,80,0.7); }
+  100% { box-shadow: 0 0 0 14px rgba(255,80,80,0); }
+}
+
+.camp-card.flash {
+  animation: camp-flash 1s ease-out 2;
+}
+
+.camp-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.camp-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.camp-badge.active {
+  background: rgba(255,60,60,0.22);
+  color: #ff6666;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.camp-badge .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #ff4444;
+  animation: camp-pulse 1.2s ease-in-out infinite;
+}
+
+.camp-badge.type {
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.75);
+}
+
+.camp-badge.sev-high {
+  background: rgba(255,80,80,0.2);
+  color: #ff8888;
+}
+
+.camp-badge.sev-medium {
+  background: rgba(255,180,80,0.16);
+  color: #ffbb66;
+}
+
+.camp-card-ip {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.camp-card-geo {
+  font-size: 11px;
+  color: rgba(255,255,255,0.5);
+  font-family: 'Inter', sans-serif;
+}
+
+/* ── Kill chain progress indicator ──────────────────────────────────────────── */
+.camp-chain {
+  display: flex;
+  align-items: center;
+  margin: 4px 0;
+}
+
+.camp-chain-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  position: relative;
+}
+
+.camp-chain-node {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.25);
+  background: transparent;
+  z-index: 2;
+  transition: all 0.4s ease;
+}
+
+.camp-chain-node.filled {
+  background: #ff4444;
+  border-color: #ff6666;
+  box-shadow: 0 0 8px rgba(255,80,80,0.6);
+}
+
+.camp-chain-line {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 100%;
+  height: 2px;
+  background: rgba(255,255,255,0.12);
+  z-index: 1;
+}
+
+.camp-chain-line.filled {
+  background: rgba(255,80,80,0.5);
+}
+
+.camp-chain-stage:last-child .camp-chain-line {
+  display: none;
+}
+
+.camp-chain-label {
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255,255,255,0.4);
+  margin-top: 5px;
+}
+
+.camp-chain-label.filled {
+  color: rgba(255,255,255,0.8);
+}
+
+/* ── Sequence + meta ────────────────────────────────────────────────────────── */
+.camp-sequence {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: rgba(255,255,255,0.7);
+  line-height: 1.5;
+}
+
+.camp-seq-arrow { color: rgba(255,80,80,0.7); margin: 0 3px; }
+
+.camp-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding-top: 8px;
+}
+
+.camp-card-meta {
+  font-size: 10px;
+  color: rgba(255,255,255,0.4);
+}
+
+.camp-resolve-btn {
+  padding: 4px 12px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 5px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.7);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.camp-resolve-btn:hover {
+  border-color: rgba(120,220,140,0.5);
+  color: #7fdd9a;
+}
+
+/* ── Completed table ────────────────────────────────────────────────────────── */
+.camp-table-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.camp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.camp-table th {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.3);
+  font-weight: 600;
+  padding: 8px 14px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  cursor: pointer;
+  user-select: none;
+}
+
+.camp-table th:hover { color: rgba(255,255,255,0.6); }
+
+.camp-table td {
+  padding: 8px 14px;
+  color: rgba(255,255,255,0.72);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.camp-table tr:last-child td { border-bottom: none; }
+.camp-table tr:hover td { background: rgba(255,255,255,0.03); }
+
+.camp-type-chip {
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.camp-empty {
+  padding: 26px 14px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.22);
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .camp-stats { grid-template-columns: repeat(2, 1fr); }
+  .camp-cards { grid-template-columns: 1fr; }
+}

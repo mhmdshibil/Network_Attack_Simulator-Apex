@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Square } from 'lucide-react'
-import { fetchScenarioStatus, stopScenario, API_BASE } from '../api/api'
+import { fetchScenarioStatus, stopScenario } from '../api/api'
+import { useDetectionStream } from '../hooks/useDetectionStream'
 import './NarrativeOverlay.css'
 
 const TOTAL_ACTS = 5
@@ -33,7 +34,7 @@ function NarrativeOverlay() {
 
   const displayedText = useTypewriter(status.narrative_text, 30)
 
-  // Poll status every 2 seconds
+  // Poll at 10 s — WS handler below gives immediate updates when scenario fires
   useEffect(() => {
     const poll = async () => {
       try {
@@ -41,45 +42,31 @@ function NarrativeOverlay() {
         setStatus(s)
       } catch { }
     }
-    poll()
-    const iv = setInterval(poll, 2000)
-    return () => clearInterval(iv)
+    const delay = Math.random() * 2000
+    let iv
+    const t = setTimeout(() => {
+      poll()
+      iv = setInterval(poll, 10000)
+    }, delay)
+    return () => { clearTimeout(t); clearInterval(iv) }
   }, [])
 
-  // WebSocket: listen for scenario_narrative messages for immediate updates
-  useEffect(() => {
-    const wsUrl = API_BASE.replace(/^http/, 'ws') + '/ws/detections'
-    let ws
-    let dead = false
-
-    const connect = () => {
-      if (dead) return
-      ws = new WebSocket(wsUrl)
-      ws.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data)
-          if (msg.type === 'scenario_narrative') {
-            setStatus(prev => ({
-              ...prev,
-              is_running: !msg.complete,
-              current_act: msg.act ?? prev.current_act,
-              act_name: msg.act_name ?? prev.act_name,
-              progress: msg.progress ?? prev.progress,
-              narrative_text: msg.text ?? prev.narrative_text,
-            }))
-          }
-          if (msg.type === 'demo_reset') {
-            setStatus({ is_running: false, current_act: 0, act_name: '', progress: 0, narrative_text: '' })
-          }
-        } catch { }
-      }
-      ws.onclose = () => { if (!dead) setTimeout(connect, 3000) }
-      ws.onerror = () => { ws.close() }
+  // Real-time updates from the shared singleton WebSocket
+  useDetectionStream(useCallback((msg) => {
+    if (msg.type === 'scenario_narrative') {
+      setStatus(prev => ({
+        ...prev,
+        is_running: !msg.complete,
+        current_act: msg.act      ?? prev.current_act,
+        act_name:    msg.act_name ?? prev.act_name,
+        progress:    msg.progress ?? prev.progress,
+        narrative_text: msg.text  ?? prev.narrative_text,
+      }))
     }
-
-    connect()
-    return () => { dead = true; ws?.close() }
-  }, [])
+    if (msg.type === 'demo_reset') {
+      setStatus({ is_running: false, current_act: 0, act_name: '', progress: 0, narrative_text: '' })
+    }
+  }, []))
 
   const handleStop = useCallback(async () => {
     if (stopping) return

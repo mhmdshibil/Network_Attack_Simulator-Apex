@@ -3,8 +3,8 @@
  * ISO 27001 compliance dashboard with SVG gauge, controls table, and 30-day metrics.
  */
 import React, { useState, useEffect, useCallback } from 'react'
-import { ShieldCheck, FileDown } from 'lucide-react'
-import { API_BASE } from '../api/api'
+import { ShieldCheck, FileDown, ShieldAlert, RefreshCw, Printer } from 'lucide-react'
+import { API_BASE, fetchCVEStats, fetchRecentCVEs, refreshCVEFeed } from '../api/api'
 import './Compliance.css'
 
 const T = {
@@ -132,10 +132,20 @@ function MetricRow({ label, value }) {
   )
 }
 
+function formatDate(d) {
+  if (!d) return '—'
+  try {
+    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  } catch { return d }
+}
+
 function Compliance() {
   const [stats, setStats]         = useState(null)
   const [downloading, setDownloading] = useState(false)
   const [dlError, setDlError]     = useState(null)
+  const [cveStats, setCveStats]   = useState(null)
+  const [recentCVEs, setRecentCVEs] = useState([])
+  const [refreshing, setRefreshing] = useState(false)
 
   const loadStats = useCallback(async () => {
     try {
@@ -144,11 +154,30 @@ function Compliance() {
     } catch { }
   }, [])
 
+  const loadCVE = useCallback(async () => {
+    const [s, recent] = await Promise.all([
+      fetchCVEStats().catch(() => null),
+      fetchRecentCVEs(7).catch(() => []),
+    ])
+    if (s) setCveStats(s)
+    if (Array.isArray(recent)) setRecentCVEs(recent)
+  }, [])
+
   useEffect(() => {
     loadStats()
-    const iv = setInterval(loadStats, 30000)
+    loadCVE()
+    const iv = setInterval(() => { loadStats(); loadCVE() }, 30000)
     return () => clearInterval(iv)
-  }, [loadStats])
+  }, [loadStats, loadCVE])
+
+  const handleRefreshCVE = async () => {
+    setRefreshing(true)
+    try {
+      await refreshCVEFeed()
+      await loadCVE()
+    } catch { /* ignore */ }
+    finally { setRefreshing(false) }
+  }
 
   const handleDownload = async () => {
     setDownloading(true)
@@ -193,6 +222,10 @@ function Compliance() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {dlError && <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.muted }}>{dlError}</span>}
+          <button onClick={() => window.print()} className="time-btn" title="Export this view to PDF"
+            style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '8px 14px', textTransform: 'none', letterSpacing: '0.02em' }}>
+            <Printer size={13} /> Export
+          </button>
           <button
             onClick={handleDownload}
             disabled={downloading}
@@ -268,6 +301,71 @@ function Compliance() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Active Threat Intelligence — CVE feed (Phase 5C) */}
+      <div style={{ ...panelStyle, padding: '24px 28px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '18px' }}>
+          <ShieldAlert size={13} style={{ color: T.muted }} />
+          <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 600, color: T.dim, textTransform: 'uppercase', letterSpacing: '0.10em' }}>
+            Active Threat Intelligence — CISA KEV
+          </span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '24px', alignItems: 'start' }}>
+          {/* Left — feed stats */}
+          <div>
+            <MetricRow label="Total CVEs in DB"      value={cveStats?.total_cves ?? '—'} />
+            <MetricRow label="Added this week"        value={cveStats?.recent_30_days != null ? recentCVEs.length : '—'} />
+            <MetricRow label="Known ransomware CVEs"  value={cveStats?.ransomware_count ?? '—'} />
+            <MetricRow label="Last updated"           value={cveStats?.last_updated ? formatDate(cveStats.last_updated) : '—'} />
+            <button
+              onClick={handleRefreshCVE}
+              disabled={refreshing}
+              className="time-btn"
+              style={{ marginTop: '14px', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', padding: '9px 14px', textTransform: 'none', letterSpacing: '0.02em', opacity: refreshing ? 0.6 : 1, cursor: refreshing ? 'default' : 'pointer' }}
+            >
+              <RefreshCw size={12} className={refreshing ? 'spin' : ''} />
+              {refreshing ? 'Refreshing…' : 'Refresh Feed'}
+            </button>
+          </div>
+
+          {/* Right — recent CVEs list */}
+          <div>
+            <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '9px', color: T.dim, textTransform: 'uppercase', letterSpacing: '0.10em', marginBottom: '10px' }}>
+              Recently Added (last 7 days)
+            </div>
+            <div style={{ maxHeight: '320px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {recentCVEs.length === 0 ? (
+                <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: T.dim, padding: '20px 0', textAlign: 'center' }}>
+                  {cveStats?.total_cves ? 'No CVEs added in the last 7 days.' : 'Feed loading… (fetches from CISA on startup)'}
+                </div>
+              ) : (
+                recentCVEs.slice(0, 10).map(cve => (
+                  <div key={cve.cve_id} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${cve.known_ransomware ? 'rgba(255,60,60,0.4)' : 'rgba(255,255,255,0.10)'}`, borderRadius: '10px', padding: '11px 14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '5px' }}>
+                      <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', fontWeight: 700, color: T.text }}>{cve.cve_id}</span>
+                      {cve.known_ransomware && (
+                        <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '8px', fontWeight: 700, letterSpacing: '0.08em', color: '#ff6666', background: 'rgba(255,60,60,0.15)', border: '1px solid rgba(255,60,60,0.4)', borderRadius: '4px', padding: '2px 6px' }}>
+                          🔴 RANSOMWARE
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontFamily: "'Inter',sans-serif", fontSize: '12px', color: T.text, marginBottom: '3px', lineHeight: 1.4 }}>
+                      {cve.vulnerability_name}
+                    </div>
+                    <div style={{ fontFamily: "'Inter',sans-serif", fontSize: '10px', color: T.muted }}>
+                      {[cve.vendor_project, cve.product].filter(Boolean).join(' · ')}
+                    </div>
+                    <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '9px', color: T.dim, marginTop: '4px' }}>
+                      Added: {formatDate(cve.date_added)}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* 30-day metrics */}

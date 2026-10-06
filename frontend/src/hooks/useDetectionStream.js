@@ -1,101 +1,27 @@
 /**
- * Phase 8 — WebSocket hook with polling fallback.
- * Phase 11 — Passes JWT token as query param for WS auth.
+ * Subscribes to the singleton DetectionStreamContext.
+ * Every WebSocket message type is forwarded to the callback so callers
+ * can filter by msg.type themselves (detection, campaign_update,
+ * baseline_alert, scenario_narrative, demo_reset, …).
  *
- * Connects to /ws/detections. On each "detection" message the callback fires.
- * If the WebSocket is unavailable or disconnects, falls back to polling
- * the /api/detections endpoint every `pollInterval` ms.
+ * The callback ref pattern means the subscription is created once on
+ * mount and is never torn down/re-created on re-renders.
  */
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef } from 'react'
+import { useDetectionStreamContext } from '../context/DetectionStreamContext'
 
-const WS_BASE = (import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000')
-  .replace(/^http/, 'ws')
+export function useDetectionStream(onDetection) {
+  const ctx         = useDetectionStreamContext()
+  const callbackRef = useRef(onDetection)
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000'
-
-function wsUrl() {
-  const token = localStorage.getItem('apex_token')
-  const base = `${WS_BASE}/ws/detections`
-  return token ? `${base}?token=${encodeURIComponent(token)}` : base
-}
-
-export function useDetectionStream(onDetection, { pollInterval = 5000 } = {}) {
-  const wsRef = useRef(null)
-  const pollRef = useRef(null)
-  const fallbackActive = useRef(false)
-
-  const startPolling = useCallback(() => {
-    if (fallbackActive.current) return
-    fallbackActive.current = true
-    const token = localStorage.getItem('apex_token')
-    const headers = token ? { Authorization: `Bearer ${token}` } : {}
-    const poll = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/detections?limit=20`, { headers })
-        if (res.status === 401) return
-        const data = await res.json()
-        const list = Array.isArray(data) ? data : []
-        list.reverse().forEach(d => {
-          onDetection(d)
-          if (d.label !== 'normal') {
-            window.dispatchEvent(new CustomEvent('apex:detection', { detail: d }))
-          }
-        })
-      } catch (_) {}
-    }
-    poll()
-    pollRef.current = setInterval(poll, pollInterval)
-  }, [onDetection, pollInterval])
-
-  const stopPolling = useCallback(() => {
-    if (pollRef.current) clearInterval(pollRef.current)
-    fallbackActive.current = false
-  }, [])
+  // Keep the ref up to date without re-subscribing
+  useEffect(() => {
+    callbackRef.current = onDetection
+  })
 
   useEffect(() => {
-    let reconnectTimer = null
-
-    function connect() {
-      try {
-        const ws = new WebSocket(wsUrl())
-        wsRef.current = ws
-
-        ws.onopen = () => {
-          stopPolling()
-        }
-
-        ws.onmessage = (evt) => {
-          try {
-            const msg = JSON.parse(evt.data)
-            if (msg.type === 'detection') {
-              onDetection(msg)
-              // Fire global event so ParticleBackground can react to real detections
-              if (msg.label !== 'normal') {
-                window.dispatchEvent(new CustomEvent('apex:detection', { detail: msg }))
-              }
-            }
-          } catch (_) {}
-        }
-
-        ws.onerror = () => {
-          ws.close()
-        }
-
-        ws.onclose = () => {
-          startPolling()
-          reconnectTimer = setTimeout(connect, 8000)
-        }
-      } catch (_) {
-        startPolling()
-      }
-    }
-
-    connect()
-
-    return () => {
-      clearTimeout(reconnectTimer)
-      stopPolling()
-      if (wsRef.current) wsRef.current.close()
-    }
-  }, [onDetection, startPolling, stopPolling])
+    if (!ctx) return
+    const unsubscribe = ctx.subscribe((msg) => callbackRef.current(msg))
+    return unsubscribe
+  }, [ctx])
 }

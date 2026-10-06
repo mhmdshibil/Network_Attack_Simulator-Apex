@@ -1,9 +1,9 @@
-import React, { useRef, useEffect, useState } from 'react'
+import React, { useRef, useEffect, useState, useMemo } from 'react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { AlertCircle, Shield, AlertTriangle, Activity, Eye, Globe, FileDown } from 'lucide-react'
+import { AlertCircle, Shield, AlertTriangle, Activity, Eye, Globe, FileDown, GitBranch, ChevronRight, Printer } from 'lucide-react'
 import { useCursorPhysics } from '../hooks/useCursorPhysics'
 import { useCountUp } from '../hooks/useCountUp'
-import { fetchHealth, fetchMetrics, fetchTimeline, fetchAlerts, API_BASE } from '../api/api'
+import { fetchHealth, fetchMetrics, fetchTimeline, fetchAlerts, fetchActiveCampaigns, API_BASE } from '../api/api'
 
 /* Monochrome tokens */
 const T = {
@@ -60,6 +60,36 @@ const PipeStep = ({ n, title, desc }) => (
   </div>
 )
 
+/* ── Alert row (memoised) ─────────────────────────────────────── */
+const AlertRow = React.memo(function AlertRow({ alert, isNew }) {
+  const isHigh = alert.severity === 'high'
+  return (
+    <div className={`alert-row alert-row-${alert.severity}${isNew ? ' alert-row-new' : ''}`}>
+      <span style={{
+        width: isHigh ? '6px' : '5px', height: isHigh ? '6px' : '5px',
+        borderRadius: '50%', flexShrink: 0,
+        background: isHigh ? 'rgba(255,255,255,0.90)' : 'rgba(255,255,255,0.45)',
+        boxShadow: isHigh ? '0 0 5px rgba(255,255,255,0.5)' : 'none',
+      }} />
+      <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: T.text, flex: 1, fontWeight: isHigh ? 600 : 400 }}>
+        {alert.message}
+      </span>
+      <span style={{
+        fontFamily: "'IBM Plex Mono',monospace", fontSize: '9px', letterSpacing: '0.06em',
+        color: isHigh ? '#fff' : T.muted,
+        background: isHigh ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)',
+        border: `1px solid ${isHigh ? 'rgba(255,255,255,0.30)' : 'rgba(255,255,255,0.12)'}`,
+        padding: '2px 7px', borderRadius: '6px', flexShrink: 0, fontWeight: isHigh ? 700 : 500,
+      }}>
+        {alert.action}
+      </span>
+      <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.dim, flexShrink: 0, minWidth: '54px', textAlign: 'right' }}>
+        {alert.timestamp ? new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}
+      </span>
+    </div>
+  )
+})
+
 /* ── Spec row ────────────────────────────────────────────────── */
 const SpecRow = ({ label, value }) => (
   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${T.border}` }}>
@@ -76,6 +106,10 @@ function Dashboard() {
   const [isOffline, setIsOffline]       = useState(false)
   const [downloading, setDownloading]   = useState(false)
   const [reportError, setReportError]   = useState(null)
+  const [activeCampaigns, setActiveCampaigns] = useState([])
+  const [newAlertKeys, setNewAlertKeys] = useState(() => new Set())
+  const prevAlertKeysRef = useRef(null)   // null until first load (avoid flash-all on mount)
+  const flashTimerRef = useRef(null)
   const cardRefs = useRef([])
   const { getInfluence } = useCursorPhysics()
 
@@ -124,7 +158,7 @@ function Dashboard() {
       } catch { setIsOffline(true) }
     }
     load()
-    const iv = setInterval(load, 5000)
+    const iv = setInterval(load, 10000)
     return () => clearInterval(iv)
   }, [])
 
@@ -132,11 +166,37 @@ function Dashboard() {
     const loadAlerts = async () => {
       try {
         const data = await fetchAlerts(20)
-        if (Array.isArray(data)) setAlertsData(data)
+        if (!Array.isArray(data)) return
+        const keys = data.map(a => `${a.ip}-${a.timestamp}`)
+        const prev = prevAlertKeysRef.current
+        if (prev) {
+          // Flash only rows that weren't present on the previous poll.
+          const fresh = new Set(keys.filter(k => !prev.has(k)))
+          if (fresh.size > 0) {
+            setNewAlertKeys(fresh)
+            clearTimeout(flashTimerRef.current)
+            flashTimerRef.current = setTimeout(() => setNewAlertKeys(new Set()), 1000)
+          }
+        }
+        prevAlertKeysRef.current = new Set(keys)
+        setAlertsData(data)
       } catch { }
     }
     loadAlerts()
     const iv = setInterval(loadAlerts, 5000)
+    return () => { clearInterval(iv); clearTimeout(flashTimerRef.current) }
+  }, [])
+
+  // Active campaigns — refresh every 10 s
+  useEffect(() => {
+    const loadCampaigns = async () => {
+      try {
+        const data = await fetchActiveCampaigns()
+        if (Array.isArray(data)) setActiveCampaigns(data)
+      } catch { }
+    }
+    loadCampaigns()
+    const iv = setInterval(loadCampaigns, 10000)
     return () => clearInterval(iv)
   }, [])
 
@@ -155,12 +215,13 @@ function Dashboard() {
     return () => cancelAnimationFrame(frameId)
   }, [getInfluence])
 
-  const cards = [
+  const cards = useMemo(() => [
     { label: 'System Health',    value: healthData?.status === 'ok' ? 'OK' : healthData?.status ?? '—', subtext: 'API connection', icon: Shield,        cls: 'health' },
     { label: 'Total Detections', value: countDetections ?? '—',                                          subtext: 'all time',       icon: AlertTriangle, cls: 'detections' },
     { label: 'Active Risky IPs', value: countRiskyIPs   ?? '—',                                          subtext: 'monitored',      icon: Globe,         cls: 'risky' },
     { label: 'Monitor Actions',  value: countMonitor     ?? '—',                                          subtext: metricsData?.last_detection ? new Date(metricsData.last_detection).toLocaleTimeString() : 'no events', icon: Eye, cls: 'confidence' },
-  ]
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [healthData?.status, countDetections, countRiskyIPs, countMonitor, metricsData?.last_detection])
 
   return (
     <div>
@@ -180,6 +241,14 @@ function Dashboard() {
               {reportError}
             </span>
           )}
+          <button
+            onClick={() => window.print()}
+            className="time-btn"
+            title="Export this view to PDF (print)"
+            style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '8px 14px', textTransform: 'none', letterSpacing: '0.02em' }}
+          >
+            <Printer size={13} /> Export
+          </button>
           <button
             onClick={handleDownloadReport}
             disabled={downloading}
@@ -272,46 +341,58 @@ function Dashboard() {
         ) : (
           <div style={{ maxHeight: '280px', overflowY: 'auto' }}>
             {alertsData.map(alert => {
-              /* Severity via dot size + text weight, no hue */
-              const isHigh = alert.severity === 'high'
-              return (
-                <div
-                  key={`${alert.ip}-${alert.timestamp}`}
-                  className={`alert-row alert-row-${alert.severity}`}
-                >
-                  <span style={{
-                    width: isHigh ? '6px' : '5px',
-                    height: isHigh ? '6px' : '5px',
-                    borderRadius: '50%',
-                    flexShrink: 0,
-                    background: isHigh ? 'rgba(255,255,255,0.90)' : 'rgba(255,255,255,0.45)',
-                    boxShadow: isHigh ? '0 0 5px rgba(255,255,255,0.5)' : 'none',
-                  }} />
-                  <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: T.text, flex: 1, fontWeight: isHigh ? 600 : 400 }}>
-                    {alert.message}
-                  </span>
-                  <span style={{
-                    fontFamily: "'IBM Plex Mono',monospace",
-                    fontSize: '9px',
-                    letterSpacing: '0.06em',
-                    color: isHigh ? '#fff' : T.muted,
-                    background: isHigh ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)',
-                    border: `1px solid ${isHigh ? 'rgba(255,255,255,0.30)' : 'rgba(255,255,255,0.12)'}`,
-                    padding: '2px 7px',
-                    borderRadius: '6px',
-                    flexShrink: 0,
-                    fontWeight: isHigh ? 700 : 500,
-                  }}>
-                    {alert.action}
-                  </span>
-                  <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.dim, flexShrink: 0, minWidth: '54px', textAlign: 'right' }}>
-                    {alert.timestamp ? new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}
-                  </span>
-                </div>
-              )
+              const key = `${alert.ip}-${alert.timestamp}`
+              return <AlertRow key={key} alert={alert} isNew={newAlertKeys.has(key)} />
             })}
           </div>
         )}
+      </div>
+
+      {/* Active Campaigns widget */}
+      <div className="chart-container" style={{ padding: 0, marginBottom: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '14px 22px', borderBottom: `1px solid ${T.border}` }}>
+          <GitBranch size={12} style={{ color: T.muted }} />
+          <span className="chart-title" style={{ margin: 0 }}>Active Campaigns</span>
+          <span style={{ marginLeft: 'auto', fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.dim, letterSpacing: '0.06em' }}>LIVE · 10s</span>
+        </div>
+        <div style={{ padding: '18px 22px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {activeCampaigns.length === 0 ? (
+            <>
+              <span style={{
+                width: '8px', height: '8px', borderRadius: '50%',
+                background: 'rgba(120,220,140,0.8)', boxShadow: '0 0 6px rgba(120,220,140,0.5)', flexShrink: 0,
+              }} />
+              <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', color: T.muted }}>
+                No active campaigns
+              </span>
+            </>
+          ) : (
+            <>
+              <span style={{
+                fontFamily: "'Space Grotesk', sans-serif", fontSize: '32px', fontWeight: 700,
+                color: '#ff5555', lineHeight: 1,
+                animation: 'breathe 1.6s ease-in-out infinite',
+              }}>
+                {activeCampaigns.length}
+              </span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: '12px', color: T.text, fontWeight: 600 }}>
+                  coordinated attack{activeCampaigns.length !== 1 ? 's' : ''} in progress
+                </div>
+                <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.muted, marginTop: '3px' }}>
+                  {activeCampaigns.slice(0, 3).map(c => c.source_ip).join(' · ')}
+                </div>
+              </div>
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('apex:navigate', { detail: 'campaigns' }))}
+                className="time-btn"
+                style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '7px 12px', textTransform: 'none', letterSpacing: '0.02em', flexShrink: 0 }}
+              >
+                View Campaigns <ChevronRight size={13} />
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* System Overview */}

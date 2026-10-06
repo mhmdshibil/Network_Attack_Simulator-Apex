@@ -1,0 +1,59 @@
+/* Toast stack — Phase 7 Task 3f. Bottom-right, above the DemoPanel. */
+.toast-stack {
+  position: fixed;
+  bottom: 20px;
+  right: 24px;
+  z-index: 650;              /* above DemoPanel (200), below reset modal (700) */
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 240px;
+  max-width: 340px;
+  padding: 11px 13px;
+  border-radius: 8px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--text-primary);
+  animation: toastIn 0.22s ease-out;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.toast-icon { flex-shrink: 0; }
+.toast-msg  { flex: 1; line-height: 1.4; }
+
+.toast-success { border-left: 3px solid var(--success); }
+.toast-success .toast-icon { color: var(--success); }
+.toast-error   { border-left: 3px solid var(--danger); }
+.toast-error .toast-icon   { color: var(--danger); }
+.toast-info    { border-left: 3px solid var(--text-dim); }
+.toast-info .toast-icon    { color: var(--text-dim); }
+
+.toast-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: flex;
+  padding: 0;
+}
+.toast-close:hover { color: var(--text-primary); }
+
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+}

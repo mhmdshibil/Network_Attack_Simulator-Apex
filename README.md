@@ -17,12 +17,25 @@ A full-stack SOC platform that generates synthetic attack traffic, classifies it
 
 | Detection | Response | Visibility |
 |-----------|----------|------------|
-| Random Forest (300 trees, 7 features) | Dry-run firewall enforcement | React dashboard, 11 pages |
+| Random Forest (300 trees, 7 features) | Dry-run firewall enforcement | React dashboard, 16 pages |
 | Isolation Forest zero-day detection | IP reputation + threat scoring | Live WebSocket feed |
-| SHAP feature attribution (top-3) | Slack + email notifications | MITRE ATT&CK enrichment |
-| 6 attack classes + unknown_anomaly | Automated triage case creation | Weekly compliance PDF |
-| 98.8% accuracy (v2 model) | Audit trail (CSV + JSONL) | ML Insights page (SHAP + Gini) |
-| Sensor agent (real + demo mode) | JWT auth, rate limiting | Scenario player (5-act demo) |
+| SHAP feature attribution (top-3) | Slack + email + **PWA push** | MITRE ATT&CK enrichment |
+| 6 attack classes + unknown_anomaly | Automated triage case creation | **GeoIP world map** |
+| 98.8% accuracy (v2 model) | **Custom alert correlation rules** | Weekly + compliance PDF / **export** |
+| Sensor agent (real + demo mode) | **Outbound webhook integration** | ML Insights page (SHAP + Gini) |
+| **Network baseline learning** | JWT auth + **2FA (TOTP)** | Scenario player (5-act demo) |
+| **CVE feed (CISA KEV)** cross-ref | **Scheduled scenario replay** | **Campaign correlation** |
+
+### Phase 5–7 additions
+
+| Phase 5 — Intelligence | Phase 6 — Platform | Phase 7 — Polish |
+|------------------------|--------------------|------------------|
+| GeoIP world map | Alert correlation rules engine | Dark / light mode toggle |
+| Campaign correlation | 2FA (TOTP, Google Authenticator) | UI transitions + animations |
+| CVE feed (CISA KEV) | Outbound webhooks (HMAC-signed) | Visual consistency pass + toasts |
+| Network baseline learning | Natural-language query (Claude) | PDF export (print CSS) |
+| | PWA push notifications | API reference page + Swagger link |
+| | | Scheduled scenario replay (cron) |
 
 ---
 

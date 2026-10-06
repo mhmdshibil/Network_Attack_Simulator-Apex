@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { fetchMetrics, fetchSystemOverview, API_BASE } from '../api/api'
+import { fetchMetrics, fetchSystemOverview, fetchActiveCampaigns, API_BASE } from '../api/api'
 import { useCountUp } from '../hooks/useCountUp'
 import { getFlag, getCountryName } from '../utils/countryFlags'
 import './DemoLanding.css'
@@ -40,6 +40,7 @@ function DemoLanding() {
   const [overview, setOverview]   = useState(null)
   const [feed, setFeed]           = useState([])
   const [lastAttack, setLastAttack] = useState(null)
+  const [campaignCount, setCampaignCount] = useState(0)
   const [now, setNow]             = useState(Date.now())
 
   const clock = useClock()
@@ -53,16 +54,18 @@ function DemoLanding() {
     return () => clearInterval(iv)
   }, [])
 
-  // Poll metrics + overview every 5s
+  // Poll metrics + overview + active campaigns every 5s
   useEffect(() => {
     const poll = async () => {
       try {
-        const [m, o] = await Promise.all([
+        const [m, o, camps] = await Promise.all([
           fetchMetrics().catch(() => null),
           fetchSystemOverview().catch(() => null),
+          fetchActiveCampaigns().catch(() => []),
         ])
         if (m) setMetrics(m)
         if (o) setOverview(o)
+        if (Array.isArray(camps)) setCampaignCount(camps.length)
       } catch { }
     }
     poll()
@@ -173,6 +176,15 @@ function DemoLanding() {
                 awaiting events…
               </div>
             )}
+          </div>
+
+          {/* Active Campaigns */}
+          <div className={`dl-card dl-card-campaign ${campaignCount > 0 ? 'active' : ''}`}>
+            <div className="dl-card-label">Active Campaigns</div>
+            <div className="dl-card-value">{campaignCount}</div>
+            <div className="dl-card-sub">
+              {campaignCount > 0 ? 'coordinated attack chains' : 'no coordinated attacks'}
+            </div>
           </div>
         </div>
 

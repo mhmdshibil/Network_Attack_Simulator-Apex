@@ -1,5 +1,5 @@
-import React, { useRef, useEffect } from 'react'
-import { Activity, AlertTriangle, BarChart3, Lock, Sun, Moon, Wifi, LogOut, ShieldAlert, Network, Route, ClipboardList, ShieldCheck, Brain, Globe } from 'lucide-react'
+import React, { useRef, useEffect, useState } from 'react'
+import { Activity, AlertTriangle, BarChart3, Lock, Sun, Moon, Wifi, LogOut, ShieldAlert, Network, Route, ClipboardList, ShieldCheck, Brain, Globe, GitBranch, TrendingUp, Sliders, Webhook, Bell, Code2 } from 'lucide-react'
 import { useCursorPhysics } from '../hooks/useCursorPhysics'
 import { useDarkMode } from '../hooks/useDarkMode'
 
@@ -7,6 +7,7 @@ function Sidebar({ activeSection, setActiveSection, role, authRequired, onLogout
   const { getInfluence } = useCursorPhysics()
   const { isDark, toggle } = useDarkMode()
   const navItemsRef = useRef([])
+  const [pushState, setPushState] = useState('idle') // idle | subscribed | denied
 
   const menuItems = [
     { id: 'dashboard',        label: 'Dashboard',    icon: Activity },
@@ -16,10 +17,15 @@ function Sidebar({ activeSection, setActiveSection, role, authRequired, onLogout
     { id: 'blocked-ips',      label: 'Blocked IPs',  icon: Lock },
     { id: 'network-map',      label: 'Network Map',  icon: Network },
     { id: 'geo-map',          label: 'Geo Map',       icon: Globe },
+    { id: 'campaigns',        label: 'Campaigns',     icon: GitBranch },
+    { id: 'baseline',         label: 'Baseline',      icon: TrendingUp },
     { id: 'triage',           label: 'Triage',        icon: ClipboardList },
     { id: 'compliance',       label: 'Compliance',    icon: ShieldCheck },
+    { id: 'rules',            label: 'Rules',         icon: Sliders },
+    { id: 'webhooks',         label: 'Webhooks',      icon: Webhook },
     { id: 'model-insights',   label: 'ML Insights',   icon: Brain },
     { id: 'roadmap',          label: 'Roadmap',       icon: Route },
+    { id: 'api-docs',         label: 'API Docs',      icon: Code2 },
   ]
 
   useEffect(() => {
@@ -95,9 +101,24 @@ function Sidebar({ activeSection, setActiveSection, role, authRequired, onLogout
               <LogOut size={12} />
             </button>
           )}
-          <button className="navbar-theme-toggle" onClick={toggle} aria-label="Toggle dark mode" title={isDark ? 'Light mode' : 'Dark mode'}>
-            {isDark ? <Sun size={12} /> : <Moon size={12} />}
+          <button className="navbar-theme-toggle" onClick={toggle} aria-label="Toggle dark mode" title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
+            {isDark ? <Moon size={12} /> : <Sun size={12} />}
           </button>
+          {'Notification' in window && (
+            <button
+              className="navbar-theme-toggle"
+              title={pushState === 'subscribed' ? 'Alerts Active' : pushState === 'denied' ? 'Notifications Off' : 'Enable Push Alerts'}
+              style={{ opacity: pushState === 'denied' ? 0.35 : 1 }}
+              onClick={async () => {
+                if (pushState === 'subscribed') return
+                const { subscribeToPush } = await import('../hooks/usePushNotifications')
+                const result = await subscribeToPush()
+                setPushState(result)
+              }}
+            >
+              <Bell size={12} style={{ color: pushState === 'subscribed' ? 'rgba(255,255,255,0.9)' : undefined }} />
+            </button>
+          )}
         </div>
 
       </div>

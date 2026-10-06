@@ -1,49 +1,36 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
+/**
+ * useDarkMode — Phase 7 Task 1.
+ * Theme is driven by document.documentElement.dataset.theme ("dark" | "light")
+ * and persisted under localStorage "apex-theme". main.jsx applies the saved
+ * theme before first paint; this hook keeps React state in sync and exposes a
+ * toggle. Same { isDark, toggle } API the Sidebar already consumes.
+ */
 export function useDarkMode() {
-  // Check localStorage first, then system preference
-  const getInitialTheme = () => {
-    const savedTheme = localStorage.getItem('theme')
-    if (savedTheme) {
-      return savedTheme === 'dark'
-    }
-    // Fall back to system preference
-    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-  }
+  const getTheme = () =>
+    document.documentElement.dataset.theme ||
+    localStorage.getItem('apex-theme') ||
+    'dark'
 
-  const [isDark, setIsDark] = useState(getInitialTheme)
+  const [theme, setTheme] = useState(getTheme)
 
+  // Reflect any external theme change (e.g. another tab) into local state.
   useEffect(() => {
-    // Apply theme to document
-    if (isDark) {
-      document.documentElement.classList.add('dark-mode')
-      document.documentElement.classList.remove('light-mode')
-    } else {
-      document.documentElement.classList.add('light-mode')
-      document.documentElement.classList.remove('dark-mode')
-    }
-    
-    // Save to localStorage
-    localStorage.setItem('theme', isDark ? 'dark' : 'light')
-  }, [isDark])
-
-  // Listen for system preference changes (only if no manual override)
-  useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-    
-    const handleChange = (e) => {
-      // Only auto-switch if user hasn't set a manual preference
-      const savedTheme = localStorage.getItem('theme')
-      if (!savedTheme) {
-        setIsDark(e.matches)
-      }
-    }
-
-    mediaQuery.addEventListener('change', handleChange)
-    return () => mediaQuery.removeEventListener('change', handleChange)
+    const observer = new MutationObserver(() => {
+      const current = document.documentElement.dataset.theme || 'dark'
+      setTheme(prev => (prev === current ? prev : current))
+    })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => observer.disconnect()
   }, [])
 
-  const toggle = () => setIsDark(prev => !prev)
+  const toggle = useCallback(() => {
+    const next = (document.documentElement.dataset.theme || 'dark') === 'dark' ? 'light' : 'dark'
+    document.documentElement.dataset.theme = next
+    localStorage.setItem('apex-theme', next)
+    setTheme(next)
+  }, [])
 
-  return { isDark, toggle }
+  return { isDark: theme === 'dark', theme, toggle }
 }

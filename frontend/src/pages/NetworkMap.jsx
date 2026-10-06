@@ -64,7 +64,7 @@ function NetworkMap() {
   const timersRef = useRef({})
 
   const onDetection = useCallback((d) => {
-    if (!d || d.label === 'normal') return
+    if (!d || !d.label || d.label === 'normal') return
     const zoneId = resolveTargetZone(d)
 
     setHits(prev => ({ ...prev, [zoneId]: (prev[zoneId] || 0) + 1 }))

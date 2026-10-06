@@ -102,10 +102,26 @@
 
 .dl-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-auto-rows: 1fr;
   gap: 20px;
   flex: 1;
+}
+
+/* Campaign alert card — pulses red when campaigns are active */
+.dl-card.dl-card-campaign.active {
+  border-color: rgba(255,70,70,0.45);
+  background: rgba(255,40,40,0.06);
+}
+
+.dl-card.dl-card-campaign.active .dl-card-value {
+  color: #ff5555;
+  animation: dl-camp-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes dl-camp-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
 }
 
 .dl-card {

@@ -74,9 +74,12 @@ SCENARIOS: dict = {
             {
                 "act": 4,
                 "name": "Lateral Movement",
+                # Same source IP as acts 1–3 so the full MITRE kill chain
+                # (Recon → Access → Execute) lands on one attacker — this is the
+                # act at which the kill_chain campaign rule fires (3rd stage).
                 "text": "Malware deployment detected — possible lateral movement to endpoint network",
                 "attacks": [
-                    {"label": "malware", "ip": "185.220.101.6", "confidence": 0.99, "risk": 99, "zone": "endpoint_network"},
+                    {"label": "malware", "ip": "185.220.101.5", "confidence": 0.99, "risk": 99, "zone": "endpoint_network"},
                 ],
                 "delay_between": 0,
                 "inter_act_delay": 44,
@@ -86,10 +89,12 @@ SCENARIOS: dict = {
             {
                 "act": 5,
                 "name": "DDoS Distraction",
+                # Same IP again → adds the 4th kill-chain stage (Impact),
+                # completing Recon → Access → Execute → Impact from 185.220.101.5.
                 "text": "DDoS attack launched as distraction — classic multi-vector campaign",
                 "attacks": [
-                    {"label": "ddos", "ip": "45.142.212.100", "confidence": 0.99, "risk": 99, "zone": "server_infrastructure"},
-                    {"label": "ddos", "ip": "45.142.212.100", "confidence": 0.99, "risk": 99, "zone": "server_infrastructure"},
+                    {"label": "ddos", "ip": "185.220.101.5", "confidence": 0.99, "risk": 99, "zone": "server_infrastructure"},
+                    {"label": "ddos", "ip": "185.220.101.5", "confidence": 0.99, "risk": 99, "zone": "server_infrastructure"},
                 ],
                 "delay_between": 8,
                 "inter_act_delay": 0,
@@ -161,6 +166,26 @@ def _write_detection(*, source_ip: str, label: str, confidence: float, risk: flo
         "risk_score": risk, "confidence": round(confidence, 3),
         "target_zone": zone,
     }
+
+    # Campaign correlation — scenario detections bypass the ML pipeline, so feed
+    # them into the campaign engine directly (same background DB loop, guarded).
+    if _db is not None:
+        try:
+            from backend.app.services.campaign_service import campaign_service
+            _db.run_async(
+                campaign_service.process_detection({
+                    "id": f"{source_ip}:{ts}",
+                    "source_ip": source_ip,
+                    "attack_type": label,
+                    "confidence": confidence,
+                    "risk_score": risk,
+                    "timestamp": ts,
+                    "mitre_tactic": (mitre or {}).get("tactic"),
+                }),
+                timeout=5,
+            )
+        except Exception as exc:
+            print(f"[CAMPAIGN] scenario service error: {exc}")
 
     ws_manager.broadcast_sync({"type": "detection", **detection_dict, "mitre": mitre})
 

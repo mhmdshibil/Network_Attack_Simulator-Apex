@@ -1,0 +1,211 @@
+/* Baseline — Phase 5D */
+
+.baseline-page {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bl-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.45);
+}
+
+/* ── Status banner ──────────────────────────────────────────────────────────── */
+.bl-banner {
+  border-radius: 10px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.bl-banner.learning {
+  background: rgba(255, 200, 60, 0.08);
+  border: 1px solid rgba(255, 200, 60, 0.35);
+  color: #ffcf66;
+}
+
+.bl-banner.active {
+  background: rgba(90, 220, 130, 0.08);
+  border: 1px solid rgba(90, 220, 130, 0.35);
+  color: #7fdd9a;
+}
+
+.bl-banner-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  flex-shrink: 0;
+}
+.bl-banner.learning .bl-banner-dot { background: #ffcf66; animation: bl-pulse 1.6s ease-in-out infinite; }
+.bl-banner.active   .bl-banner-dot { background: #7fdd9a; box-shadow: 0 0 6px rgba(127,221,154,0.6); }
+
+@keyframes bl-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+.bl-banner-sub {
+  margin-left: auto;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+/* ── Layout: charts left, deviations right ──────────────────────────────────── */
+.bl-main {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 14px;
+  align-items: start;
+}
+
+/* ── Sparkline chart grid ───────────────────────────────────────────────────── */
+.bl-charts {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.bl-chart-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.bl-chart-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.6);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bl-chart-range {
+  font-size: 9px;
+  color: rgba(255,255,255,0.3);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.bl-svg { width: 100%; height: 70px; display: block; }
+
+/* ── Deviations panel ───────────────────────────────────────────────────────── */
+.bl-side-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.bl-side-header {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.4);
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.bl-alert-list {
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.bl-alert {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  border-left: 3px solid transparent;
+}
+
+.bl-alert.medium { border-left-color: #ffcf66; }
+.bl-alert.high   { border-left-color: #ff5555; }
+
+.bl-alert-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.bl-alert-ip {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: #fff;
+  font-weight: 600;
+}
+
+.bl-sev-badge {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.bl-sev-badge.medium { background: rgba(255,200,60,0.15); color: #ffcf66; }
+.bl-sev-badge.high   { background: rgba(255,60,60,0.18); color: #ff7777; }
+
+.bl-alert-features {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: rgba(255,255,255,0.5);
+  line-height: 1.5;
+}
+
+.bl-alert-time {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  color: rgba(255,255,255,0.3);
+  margin-top: 3px;
+}
+
+/* ── Feature stats table ────────────────────────────────────────────────────── */
+.bl-table-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.bl-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+
+.bl-table th {
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.3); font-weight: 600;
+  padding: 8px 14px; text-align: left;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.bl-table td {
+  padding: 8px 14px; color: rgba(255,255,255,0.72);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+}
+.bl-table tr:last-child td { border-bottom: none; }
+
+.bl-status-chip {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 4px;
+}
+.bl-status-chip.active   { background: rgba(90,220,130,0.15); color: #7fdd9a; }
+.bl-status-chip.learning { background: rgba(255,200,60,0.15); color: #ffcf66; }
+
+.bl-empty {
+  padding: 24px 14px; font-size: 11px; color: rgba(255,255,255,0.22); text-align: center;
+}
+
+@media (max-width: 1000px) {
+  .bl-main { grid-template-columns: 1fr; }
+  .bl-charts { grid-template-columns: 1fr; }
+}

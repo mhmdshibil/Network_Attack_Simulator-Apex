@@ -1,0 +1,23 @@
+{
+  "name": "Apex Argus SOC",
+  "short_name": "Apex Argus",
+  "description": "Network Security Operations Platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' fill='%230a0a0a'/><polygon points='96,24 168,168 24,168' fill='none' stroke='rgba(255,255,255,0.85)' stroke-width='8'/><polygon points='96,60 148,156 44,156' fill='rgba(255,255,255,0.1)'/><line x1='96' y1='24' x2='96' y2='168' stroke='rgba(255,255,255,0.3)' stroke-width='4'/><circle cx='96' cy='100' r='10' fill='%23fff'/></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' fill='%230a0a0a'/><polygon points='256,64 448,448 64,448' fill='none' stroke='rgba(255,255,255,0.85)' stroke-width='16'/><polygon points='256,160 392,416 120,416' fill='rgba(255,255,255,0.1)'/><line x1='256' y1='64' x2='256' y2='448' stroke='rgba(255,255,255,0.3)' stroke-width='8'/><circle cx='256' cy='260' r='24' fill='%23fff'/></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

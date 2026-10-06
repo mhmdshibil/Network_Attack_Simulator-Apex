@@ -1,0 +1,127 @@
+/* Rules page — Phase 6A */
+.rules-page { padding: 24px 28px; color: #fff; min-height: 100vh; }
+
+.rules-loading { padding: 40px; text-align: center; color: rgba(255,255,255,0.45);
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+
+.rules-eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 9px;
+  letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.35);
+  margin-bottom: 6px; }
+
+.rules-title { display: flex; align-items: center; gap: 8px;
+  font-size: 20px; font-weight: 600; letter-spacing: -0.4px; margin-bottom: 24px; }
+
+.rules-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; }
+
+.rules-add-btn { display: flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.85); padding: 7px 14px; border-radius: 6px;
+  font-size: 12px; cursor: pointer; transition: background 0.15s; }
+.rules-add-btn:hover { background: rgba(255,255,255,0.13); }
+
+.rules-empty { padding: 48px; text-align: center; color: rgba(255,255,255,0.35);
+  font-size: 13px; font-family: 'IBM Plex Mono', monospace; }
+
+/* Table */
+.rules-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.rules-table th { padding: 8px 12px; text-align: left; font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: rgba(255,255,255,0.35); border-bottom: 1px solid rgba(255,255,255,0.06); }
+.rules-table td { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);
+  vertical-align: top; }
+.rules-row-disabled td { opacity: 0.45; }
+
+.rules-priority { font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+  font-weight: 700; color: rgba(255,255,255,0.6); text-align: center; width: 60px; }
+
+.rules-name { font-weight: 600; font-size: 13px; margin-bottom: 3px; }
+.rules-desc { font-size: 11px; color: rgba(255,255,255,0.45); }
+
+.rules-conditions { font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+  color: rgba(255,255,255,0.6); max-width: 320px; word-break: break-word; }
+
+.rules-action-badge { display: inline-block; padding: 3px 9px; border-radius: 4px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.06em; border: 1px solid rgba(255,255,255,0.12); }
+
+.rules-status { font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.06em; }
+.rules-status.on  { color: rgba(255,255,255,0.75); }
+.rules-status.off { color: rgba(255,255,255,0.3); }
+
+.rules-triggers { font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+.rules-last-triggered { display: block; font-size: 9px; color: rgba(255,255,255,0.3); margin-top: 2px; }
+
+.rules-actions-cell { display: flex; gap: 6px; align-items: center; }
+
+.rules-icon-btn { background: none; border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.55); padding: 5px 7px; border-radius: 4px;
+  cursor: pointer; display: flex; align-items: center; transition: all 0.15s; }
+.rules-icon-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+.rules-icon-btn.rules-delete:hover { background: rgba(255,60,60,0.15); color: #ff8080; border-color: rgba(255,60,60,0.3); }
+
+/* Slide-in panel */
+.rules-panel-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  z-index: 50; display: flex; justify-content: flex-end; }
+
+.rules-panel { width: 440px; background: #0d0d0d; border-left: 1px solid rgba(255,255,255,0.1);
+  display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+.rules-panel-header { display: flex; justify-content: space-between; align-items: center;
+  padding: 18px 20px; border-bottom: 1px solid rgba(255,255,255,0.08);
+  font-weight: 600; font-size: 14px; }
+
+.rules-panel-body { flex: 1; overflow-y: auto; padding: 20px; display: flex;
+  flex-direction: column; gap: 12px; }
+
+.rules-panel-footer { padding: 16px 20px; border-top: 1px solid rgba(255,255,255,0.08);
+  display: flex; gap: 10px; justify-content: flex-end; }
+
+.rules-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+  letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.45);
+  display: block; margin-bottom: 6px; }
+.rules-req { color: rgba(255,100,100,0.8); }
+
+.rules-input { width: 100%; background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 5px;
+  color: #fff; padding: 8px 10px; font-size: 12px; box-sizing: border-box;
+  font-family: inherit; }
+.rules-input:focus { outline: none; border-color: rgba(255,255,255,0.25); }
+
+.rules-select { width: 100%; background: #111; border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 5px; color: rgba(255,255,255,0.85); padding: 8px 10px; font-size: 12px;
+  cursor: pointer; }
+.rules-select:focus { outline: none; border-color: rgba(255,255,255,0.25); }
+
+.rules-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.rules-toggle-row { display: flex; align-items: center; justify-content: space-between; }
+.rules-toggle-btn { background: none; border: none; cursor: pointer; padding: 0; display: flex; }
+
+.rules-cond-header { display: flex; align-items: center; justify-content: space-between; }
+.rules-add-cond-btn { display: flex; align-items: center; gap: 4px;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.7); padding: 4px 10px; border-radius: 4px;
+  font-size: 11px; cursor: pointer; }
+.rules-add-cond-btn:hover { background: rgba(255,255,255,0.11); }
+
+.rules-cond-row { display: flex; gap: 6px; align-items: center; }
+.rules-cond-select { flex: 0 0 auto; width: auto !important; min-width: 90px; }
+.rules-cond-val { flex: 1; }
+.rules-cond-empty { font-size: 11px; color: rgba(255,255,255,0.3);
+  font-family: 'IBM Plex Mono', monospace; text-align: center; padding: 8px; }
+
+.rules-error { color: #ff8080; font-size: 12px;
+  background: rgba(255,60,60,0.08); border: 1px solid rgba(255,60,60,0.2);
+  padding: 8px 12px; border-radius: 5px; }
+
+.rules-cancel-btn { background: none; border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.6); padding: 8px 16px; border-radius: 5px;
+  font-size: 12px; cursor: pointer; }
+.rules-cancel-btn:hover { background: rgba(255,255,255,0.06); }
+
+.rules-save-btn { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+  color: #fff; padding: 8px 16px; border-radius: 5px; font-size: 12px;
+  cursor: pointer; transition: background 0.15s; }
+.rules-save-btn:hover:not(:disabled) { background: rgba(255,255,255,0.16); }
+.rules-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }

@@ -1,0 +1,41 @@
+/* ============================================================================
+   transitions.css — Phase 7 Task 2c, 2f
+   Page-mount fade-in, new-row flash, and shared micro-animations.
+   ============================================================================ */
+
+/* ── Task 2c — Page enter animation (runs once on fresh mount) ──────────── */
+.page-enter {
+  animation: pageEnter 0.2s ease-out forwards;
+}
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Task 2f — Alert row flash on new detection ────────────────────────── */
+@keyframes rowFlash {
+  0%   { background: var(--text-accent); opacity: 0.3; }
+  100% { background: transparent; opacity: 1; }
+}
+.alert-row-new { animation: rowFlash 0.8s ease-out; }
+
+/* ── Task 2e — Slide-in panel (shared helper) ──────────────────────────── */
+@keyframes panelSlideIn {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+.slide-in-panel { animation: panelSlideIn 0.25s ease-out; }
+
+/* Generic shimmer used by skeleton loaders (defined fully in components.css) */
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Reduced-motion users opt out of all of the above */
+@media (prefers-reduced-motion: reduce) {
+  .page-enter,
+  .alert-row-new,
+  .slide-in-panel,
+  .skeleton { animation: none !important; }
+}

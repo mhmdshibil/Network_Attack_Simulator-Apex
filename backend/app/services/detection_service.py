@@ -57,6 +57,14 @@ _DECISION_TO_ACTION = {
     "ALLOW": "allowed",
 }
 
+# Rules engine action values → internal action strings
+_RULE_ACTION_MAP = {
+    "block":      "blocked",
+    "rate_limit": "rate_limited",
+    "alert":      "monitored",
+    "escalate":   "blocked",
+}
+
 
 def _geo_enrich(ip: str):
     """
@@ -78,6 +86,84 @@ def _geo_enrich(ip: str):
         return None
 
 
+def _process_campaign(detection: dict) -> None:
+    """
+    Feed a non-normal detection into the campaign correlation engine.
+
+    Runs on the background DB loop (via run_async) so campaign_service's
+    in-memory state and DB writes stay on a single loop. Fully guarded — a
+    campaign failure never affects the detection itself.
+    """
+    if _db is None:
+        return
+    try:
+        from backend.app.services.campaign_service import campaign_service
+        _db.run_async(
+            campaign_service.process_detection({
+                "id":           f"{detection['ip']}:{detection['timestamp']}",
+                "source_ip":    detection["ip"],
+                "attack_type":  detection["label"],
+                "confidence":   detection.get("confidence"),
+                "risk_score":   detection.get("risk_score"),
+                "timestamp":    detection["timestamp"],
+                "mitre_tactic": (detection.get("mitre") or {}).get("tactic"),
+            }),
+            timeout=5,
+        )
+    except Exception as exc:
+        print(f"[CAMPAIGN] service error: {exc}")
+
+
+def _process_cve(detection: dict):
+    """
+    Cross-reference a detection against the CISA KEV feed. Returns a small
+    cve_context dict ({top_cve, cve_name, ransomware}) for the WS broadcast, or
+    None. Links the top match to the detection in the DB. Fully guarded.
+    """
+    if _db is None:
+        return None
+    try:
+        from backend.app.services.cve_service import cve_service
+        det_id = f"{detection['ip']}:{detection['timestamp']}"
+        matches = _db.run_async(
+            cve_service.match_detection({
+                "attack_type": detection["label"],
+                "detection_id": det_id,
+            }),
+            timeout=5,
+        )
+        if not matches:
+            return None
+        top = matches[0]
+        _db.run_async_bg(_db.link_cve_to_detection(det_id, top.cve_id, top.relevance))
+        return {"top_cve": top.cve_id, "cve_name": top.name, "ransomware": top.ransomware}
+    except Exception as exc:
+        print(f"[CVE] match error: {exc}")
+        return None
+
+
+def _baseline_update(features: dict) -> None:
+    """Feed a feature window into the baseline learner (synchronous, fast)."""
+    try:
+        from backend.app.services.baseline_service import baseline_service
+        baseline_service.update(features)
+    except Exception as exc:
+        print(f"[BASELINE] update error: {exc}")
+
+
+def _baseline_check_and_alert(features: dict) -> None:
+    """Check an RF-normal window against the baseline; broadcast if it deviates."""
+    try:
+        from backend.app.services.baseline_service import baseline_service
+        alert = baseline_service.check_deviation(features)
+        if alert:
+            ws_manager.broadcast_sync({"type": "baseline_alert", **alert})
+            print(f"[BASELINE] deviation — {alert['severity']} from {alert['source_ip']} "
+                  f"({len(alert['deviating_features'])} features)")
+    except Exception as exc:
+        print(f"[BASELINE] check error: {exc}")
+
+
 class DetectionEngine:
 
     def __init__(self):
@@ -94,6 +180,13 @@ class DetectionEngine:
             return []
 
         X = agg[FEATURE_COLUMNS]
+
+        # ── Baseline learning (5D) — update from every window BEFORE RF ──────
+        for _, _row in agg.iterrows():
+            _baseline_update({
+                **{f: _row.get(f) for f in FEATURE_COLUMNS},
+                "source_ip": _row.get("source_ip"),
+            })
 
         # ── Random Forest ──────────────────────────────────────────────────
         rf_labels = predict(self.model, X)
@@ -129,6 +222,14 @@ class DetectionEngine:
         labels_confs = agg.apply(lambda r: _resolve(r), axis=1)
         agg["final_label"] = [lc[0] for lc in labels_confs]
         agg["final_conf"] = [lc[1] for lc in labels_confs]
+
+        # ── Baseline deviation check on RF-normal windows (5D) ───────────────
+        # "Normal" by RF but abnormal vs the learned baseline = soft signal.
+        for _, _row in agg[agg["final_label"] == "normal"].iterrows():
+            _baseline_check_and_alert({
+                **{f: _row.get(f) for f in FEATURE_COLUMNS},
+                "source_ip": _row.get("source_ip"),
+            })
 
         # Keep attack rows only
         attacks = agg[agg["final_label"] != "normal"]
@@ -200,6 +301,10 @@ class DetectionEngine:
             action = detection["action"]
             detection["geo"] = _geo_enrich(alert_ip)
 
+            # Rules engine — override action if a rule matches (Phase 6A)
+            self._apply_rules(detection)
+            action = detection["action"]
+
             detections.append(detection)
             self._log_detection(detection)          # CSV (primary/fallback)
 
@@ -218,11 +323,23 @@ class DetectionEngine:
                     sensor_mode="auto",
                 )
 
+            # Campaign correlation (after logging + triage + notifications)
+            _process_campaign(detection)
+
+            # CVE cross-reference (5C) — attach KEV context to the broadcast
+            detection["cve_context"] = _process_cve(detection)
+
             # Broadcast to WebSocket clients
-            ws_manager.broadcast_sync({
-                "type": "detection",
-                **{k: v for k, v in detection.items() if k != "shap_top3"},
-            })
+            ws_payload = {k: v for k, v in detection.items() if k != "shap_top3"}
+            ws_manager.broadcast_sync({"type": "detection", **ws_payload})
+
+            # Webhook delivery (Phase 6C) — fire-and-forget on background DB loop
+            if _db is not None:
+                try:
+                    from backend.app.services.webhook_service import webhook_service as _wh
+                    _db.run_async_bg(_wh.deliver("detection", ws_payload))
+                except Exception:
+                    pass
 
             print(
                 f"[ALERT] {action.upper()} — {label} from {alert_ip} "
@@ -264,6 +381,21 @@ class DetectionEngine:
             columns=FEATURE_COLUMNS,
         )
 
+        # Feature dict for baseline learning (5D)
+        feature_dict = {
+            "packets_per_second": packets_per_second,
+            "avg_request_rate": avg_request_rate,
+            "failed_connections": failed_connections,
+            "unique_ports": unique_ports,
+            "bytes_per_packet": bytes_per_packet,
+            "connection_duration": connection_duration,
+            "payload_entropy": payload_entropy,
+            "source_ip": source_ip,
+            "timestamp": ts,
+        }
+        # Baseline: update BEFORE RF prediction (learns from all traffic).
+        _baseline_update(feature_dict)
+
         # ── Random Forest + Isolation Forest (same as run_once) ─────────────
         rf_label = predict(self.model, X)[0]
         probas = predict_proba(self.model, X)
@@ -278,6 +410,10 @@ class DetectionEngine:
             label, confidence = "unknown_anomaly", min(score * 1.5, 0.75)
         else:
             label, confidence = "normal", 0.0
+
+        # Baseline: check RF-normal windows for deviation AFTER prediction (5D).
+        if label == "normal":
+            _baseline_check_and_alert(feature_dict)
 
         risk_score = round(min(confidence * 100, 99.0), 1)
         severity = _confidence_to_severity(confidence)
@@ -324,6 +460,10 @@ class DetectionEngine:
             action = detection["action"]
             detection["geo"] = _geo_enrich(source_ip)
 
+            # Rules engine override (Phase 6A)
+            self._apply_rules(detection)
+            action = detection["action"]
+
             self._log_detection(detection)          # CSV (primary/fallback)
 
             # Dual-write to DB (non-blocking, guarded — CSV is the fallback)
@@ -341,10 +481,23 @@ class DetectionEngine:
                     sensor_mode=sensor_mode,
                 )
 
-            ws_manager.broadcast_sync({
-                "type": "detection",
-                **{k: v for k, v in detection.items() if k != "shap_top3"},
-            })
+            # Campaign correlation (after logging + triage + notifications)
+            _process_campaign(detection)
+
+            # CVE cross-reference (5C) — attach KEV context to the broadcast
+            detection["cve_context"] = _process_cve(detection)
+
+            ingest_payload = {k: v for k, v in detection.items() if k != "shap_top3"}
+            ws_manager.broadcast_sync({"type": "detection", **ingest_payload})
+
+            # Webhook delivery (Phase 6C)
+            if _db is not None:
+                try:
+                    from backend.app.services.webhook_service import webhook_service as _wh
+                    _db.run_async_bg(_wh.deliver("detection", ingest_payload))
+                except Exception:
+                    pass
+
             print(
                 f"[INGEST] {action.upper()} — {label} from {source_ip} "
                 f"(risk={risk_score:.0f}, conf={confidence:.2f}, zone={target_zone})"
@@ -384,6 +537,17 @@ class DetectionEngine:
             _db.run_async_bg(ti.check_ip(ip))
         except Exception:
             pass
+
+    def _apply_rules(self, detection: dict) -> None:
+        """Override action via the rules engine if any rule matches (Phase 6A)."""
+        try:
+            from backend.app.services.rules_service import rules_service
+            rule_action = rules_service.evaluate(detection)
+            if rule_action:
+                detection["action"] = _RULE_ACTION_MAP.get(rule_action, detection["action"])
+                detection["rule_triggered"] = True
+        except Exception as exc:
+            print(f"[RULES] evaluate error: {exc}")
 
     def _log_detection(self, detection: dict):
         # Write the 5 core columns that all analytics routes expect

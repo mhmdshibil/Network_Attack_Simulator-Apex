@@ -237,6 +237,22 @@ Each attack gets a freshly generated globally-routable IPv4 address. The followi
 224.0.0.0/4, 240.0.0.0/4, 255.255.255.255/32
 ```
 
+### Scenario player (Corporate Breach) + campaign correlation
+
+Press `S` (or `POST /api/scenario/start`) to run the scripted 5-act **Corporate Breach Attempt**. All five acts now originate from a single attacker (`185.220.101.5`) so they correlate into one attack **campaign**:
+
+```
+Act 1  Reconnaissance   port_scan       →  Recon    (kill-chain stage 1)
+Act 2  Credential Attack bruteforce     →  Access   (kill-chain stage 2)
+Act 3  Exploitation     sql_injection   →  Access   (3rd distinct attack type)
+Act 4  Lateral Movement malware         →  Execute  (kill-chain stage 3)
+Act 5  DDoS Distraction ddos            →  Impact   (kill-chain stage 4)
+```
+
+**Demo note — after Act 3, navigate to the Campaigns page: you'll see the campaign auto-detected.** It first appears as a **multi-vector** campaign (3 distinct attack types from one IP), then escalates to a **kill chain** campaign at Act 4 when the malware stage completes three consecutive kill-chain stages (Recon → Access → Execute). The kill-chain progress bar fills stage-by-stage in real time.
+
+The correlation windows (10 min multi-vector / 30 min kill-chain) comfortably cover the ~2.5-minute scenario runtime.
+
 ---
 
 ## Wazuh SIEM integration (optional)

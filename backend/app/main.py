@@ -28,8 +28,22 @@ from backend.app.api.routes_notifications import router as notifications_router
 from backend.app.api.routes_scenario import router as scenario_router
 from backend.app.api.routes_admin import router as admin_router
 from backend.app.api.routes_geo import router as geo_router
+from backend.app.api.routes_campaigns import router as campaigns_router
+from backend.app.api.routes_cve import router as cve_router
+from backend.app.api.routes_baseline import router as baseline_router
+from backend.app.api.routes_rules import router as rules_router
+from backend.app.api.routes_2fa import router as twofa_router
+from backend.app.api.routes_webhooks import router as webhooks_router
+from backend.app.api.routes_nlq import router as nlq_router
+from backend.app.api.routes_push import router as push_router
+from backend.app.api.routes_schedule import router as schedule_router, schedule_loop
 from backend.app.services.auto_attack import auto_attack_loop
 from backend.app.services.demo_mode import DEMO_MODE, enable as demo_enable, disable as demo_disable
+from backend.app.services.campaign_service import campaign_sweep_loop
+from backend.app.services.cve_service import cve_fetch_loop
+from backend.app.services.baseline_service import baseline_service, baseline_persist_loop
+from backend.app.services.rules_service import rules_service
+from backend.app.services.ws_manager import manager as ws_manager
 from backend.app.core.paths import RF_MODEL_PATH, ANOMALY_MODEL_PATH
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
@@ -37,7 +51,12 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Capture the main server loop so worker-thread / background-loop code can
+    # schedule WebSocket broadcasts onto it (detections + campaign updates).
+    ws_manager.bind_loop(asyncio.get_running_loop())
+
     aa_task = asyncio.create_task(auto_attack_loop())
+    sweep_task = asyncio.create_task(campaign_sweep_loop())
     if DEMO_MODE:
         await demo_enable()   # honours env var on boot; runtime toggle takes over after
 
@@ -50,12 +69,33 @@ async def lifespan(app: FastAPI):
     except Exception as db_exc:  # pragma: no cover
         print(f"[DB] skipped table init ({db_exc}); using CSV/JSONL only")
 
+    # Phase 5C — start the CISA KEV fetch loop on the background DB loop (so its
+    # DB writes stay on the loop that owns the engine). Tables exist by now.
+    try:
+        from backend.app.core.database import run_async_bg
+        run_async_bg(cve_fetch_loop())
+    except Exception as cve_exc:  # pragma: no cover
+        print(f"[CVE] fetch loop not started ({cve_exc})")
+
+    # Phase 5D — load persisted baseline and start the 5-minute persistence loop.
+    baseline_service.load_from_disk()
+    baseline_task = asyncio.create_task(baseline_persist_loop())
+    rules_service.load_rules()
+
+    # Phase 7 — scheduled scenario replay (cron-driven, checks every 60 s).
+    schedule_task = asyncio.create_task(schedule_loop())
+
     yield
     aa_task.cancel()
-    try:
-        await aa_task
-    except asyncio.CancelledError:
-        pass
+    sweep_task.cancel()
+    baseline_task.cancel()
+    schedule_task.cancel()
+    for _t in (aa_task, sweep_task, baseline_task, schedule_task):
+        try:
+            await _t
+        except asyncio.CancelledError:
+            pass
+    baseline_service.save_to_disk()   # final flush
     await demo_disable()      # clean shutdown regardless of runtime state
 
 
@@ -96,6 +136,15 @@ app.include_router(notifications_router)
 app.include_router(scenario_router)
 app.include_router(admin_router)
 app.include_router(geo_router)
+app.include_router(campaigns_router)
+app.include_router(cve_router)
+app.include_router(baseline_router)
+app.include_router(rules_router)
+app.include_router(twofa_router)
+app.include_router(webhooks_router)
+app.include_router(nlq_router)
+app.include_router(push_router)
+app.include_router(schedule_router)
 
 
 @app.get("/api/health")

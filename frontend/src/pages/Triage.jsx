@@ -3,8 +3,9 @@
  * Case management table for SOC analysts.
  * Monochrome base with explicit color exceptions for severity/status/SLA (carry meaning).
  */
-import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { ClipboardList, X, CheckCheck, Clock, AlertTriangle, Shield } from 'lucide-react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { ClipboardList, X, CheckCheck, Clock, AlertTriangle, Shield, Printer } from 'lucide-react'
+import { useToast } from '../context/ToastContext'
 import { API_BASE } from '../api/api'
 import { useDetectionStream } from '../hooks/useDetectionStream'
 import './Triage.css'
@@ -89,10 +90,18 @@ function EditPanel({ caseItem, onClose, onSaved }) {
   const [saving, setSaving]     = useState(false)
   const [error, setError]       = useState(null)
 
+  // Fetch full detail (including notes) the first time the panel opens for this case
   useEffect(() => {
     setStatus(caseItem.status)
     setAssignedTo(caseItem.assigned_to || '')
     setNotes(caseItem.notes || '')
+    // Load notes lazily if not already present on the list item
+    if (caseItem.notes === undefined) {
+      authFetch(`${API_BASE}/api/triage/${caseItem.id}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(full => { if (full) setNotes(full.notes || '') })
+        .catch(() => {})
+    }
   }, [caseItem.id])
 
   const handleSave = async () => {
@@ -217,8 +226,65 @@ function EditPanel({ caseItem, onClose, onSaved }) {
   )
 }
 
+const PAGE_SIZE = 50
+
+// Memoised row — only re-renders when its own case data or highlight flags change
+const TriageRow = React.memo(function TriageRow({ c, isNew, isBreached, onAck, onView }) {
+  return (
+    <tr
+      className={`${isNew ? 'triage-row-new' : ''} ${isBreached ? 'triage-row-breached' : ''}`}
+      style={{ cursor: 'pointer' }}
+      onClick={() => onView(c)}
+    >
+      <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.dim }}>
+        {c.id?.slice(0, 8)}…
+      </td>
+      <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', fontWeight: 600, color: T.text }}>
+        {c.source_ip}
+      </td>
+      <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: T.muted }}>
+        {c.attack_type?.replace(/_/g, ' ')}
+      </td>
+      <td><Badge map={SEV}  value={c.severity} /></td>
+      <td><Badge map={STAT} value={c.status} /></td>
+      <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: T.muted }}>
+        {c.assigned_to || <span style={{ color: T.dim }}>—</span>}
+      </td>
+      <td>
+        <span style={{ color: SLA_COLOR[c.sla_status] || T.dim, fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', fontWeight: 700 }}>
+          {SLA_ICON[c.sla_status] || '?'}
+        </span>
+      </td>
+      <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.dim }}>
+        {c.created_at ? new Date(c.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+      </td>
+      <td onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          {c.status === 'open' && (
+            <button
+              onClick={e => onAck(c.id, e)}
+              className="time-btn"
+              style={{ padding: '4px 10px', fontSize: '9px', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'none', letterSpacing: '0.02em' }}
+            >
+              <CheckCheck size={10} /> Ack
+            </button>
+          )}
+          <button
+            onClick={e => { e.stopPropagation(); onView(c) }}
+            className="time-btn"
+            style={{ padding: '4px 10px', fontSize: '9px', textTransform: 'none', letterSpacing: '0.02em' }}
+          >
+            View
+          </button>
+        </div>
+      </td>
+    </tr>
+  )
+})
+
 // ── Main ──────────────────────────────────────────────────────────────────
 function Triage() {
+  const { showToast } = useToast()
   const [cases, setCases]         = useState([])
   const [stats, setStats]         = useState(null)
   const [filterStatus, setFilterStatus]   = useState('')
@@ -227,16 +293,38 @@ function Triage() {
   const [editCase, setEditCase]   = useState(null)
   const [newIds, setNewIds]       = useState(new Set())
   const [loading, setLoading]     = useState(true)
+  const [page, setPage]           = useState(0)
   const prevIdsRef  = useRef(new Set())
   const wsTriggered = useRef(false)
+  const newIdsTimerRef = useRef(null)
+
+  // Debounced filter values — API fetch waits 300 ms after last change
+  const [debouncedStatus,   setDebouncedStatus]   = useState('')
+  const [debouncedSeverity, setDebouncedSeverity] = useState('')
+  const [debouncedMe,       setDebouncedMe]       = useState(false)
+
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedStatus(filterStatus); setPage(0) }, 300)
+    return () => clearTimeout(t)
+  }, [filterStatus])
+
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSeverity(filterSeverity); setPage(0) }, 300)
+    return () => clearTimeout(t)
+  }, [filterSeverity])
+
+  useEffect(() => {
+    setDebouncedMe(filterMe)
+    setPage(0)
+  }, [filterMe])
 
   const buildUrl = useCallback(() => {
     const params = new URLSearchParams()
-    if (filterStatus)   params.set('status', filterStatus)
-    if (filterSeverity) params.set('severity', filterSeverity)
-    if (filterMe)       params.set('assigned_to', 'me')
+    if (debouncedStatus)   params.set('status', debouncedStatus)
+    if (debouncedSeverity) params.set('severity', debouncedSeverity)
+    if (debouncedMe)       params.set('assigned_to', 'me')
     return `${API_BASE}/api/triage?${params}`
-  }, [filterStatus, filterSeverity, filterMe])
+  }, [debouncedStatus, debouncedSeverity, debouncedMe])
 
   const loadCases = useCallback(async (fromWs = false) => {
     try {
@@ -248,7 +336,8 @@ function Triage() {
         const added = data.filter(c => !prevIdsRef.current.has(c.id)).map(c => c.id)
         if (added.length > 0) {
           setNewIds(new Set(added))
-          setTimeout(() => setNewIds(new Set()), 3000)
+          clearTimeout(newIdsTimerRef.current)
+          newIdsTimerRef.current = setTimeout(() => setNewIds(new Set()), 3000)
         }
       }
       prevIdsRef.current = currentIds
@@ -262,6 +351,10 @@ function Triage() {
       const res = await authFetch(`${API_BASE}/api/triage/stats`)
       if (res.ok) setStats(await res.json())
     } catch { }
+  }, [])
+
+  useEffect(() => {
+    return () => clearTimeout(newIdsTimerRef.current)
   }, [])
 
   useEffect(() => {
@@ -291,8 +384,11 @@ function Triage() {
         const updated = await res.json()
         setCases(prev => prev.map(c => c.id === updated.id ? updated : c))
         if (editCase?.id === updated.id) setEditCase(updated)
+        showToast('Case acknowledged', 'success')
+      } else {
+        showToast('Failed to acknowledge case', 'error')
       }
-    } catch { }
+    } catch { showToast('Failed to acknowledge case', 'error') }
   }
 
   const handleSaved = (updated) => {
@@ -300,6 +396,15 @@ function Triage() {
     setEditCase(updated)
     loadStats()
   }
+
+  const handleAcknowledgeRow = useCallback((caseId, e) => handleAcknowledge(caseId, e), [])
+  const handleViewRow = useCallback((c) => setEditCase(c), [])
+
+  const pageCount    = Math.max(1, Math.ceil(cases.length / PAGE_SIZE))
+  const pagedCases   = useMemo(
+    () => cases.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE),
+    [cases, page]
+  )
 
   const fmtMins = (m) => {
     if (m == null) return '—'
@@ -310,13 +415,19 @@ function Triage() {
   return (
     <div>
       {/* Page header */}
-      <div style={{ marginBottom: '24px' }}>
-        <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 600, color: T.dim, textTransform: 'uppercase', letterSpacing: '0.10em', marginBottom: '5px' }}>
-          Security Operations
+      <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '16px' }}>
+        <div>
+          <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', fontWeight: 600, color: T.dim, textTransform: 'uppercase', letterSpacing: '0.10em', marginBottom: '5px' }}>
+            Security Operations
+          </div>
+          <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: '22px', fontWeight: 700, color: T.text, letterSpacing: '-0.02em' }}>
+            Alert Triage
+          </div>
         </div>
-        <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: '22px', fontWeight: 700, color: T.text, letterSpacing: '-0.02em' }}>
-          Alert Triage
-        </div>
+        <button onClick={() => window.print()} className="time-btn" title="Export this view to PDF"
+          style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '8px 14px', textTransform: 'none', letterSpacing: '0.02em' }}>
+          <Printer size={13} /> Export
+        </button>
       </div>
 
       {/* Stat cards */}
@@ -399,65 +510,45 @@ function Triage() {
               </tr>
             </thead>
             <tbody>
-              {cases.map(c => {
-                const isNew = newIds.has(c.id)
-                const isBreached = c.sla_status === 'breached' && !['resolved','false_positive'].includes(c.status)
-                return (
-                  <tr
-                    key={c.id}
-                    className={`${isNew ? 'triage-row-new' : ''} ${isBreached ? 'triage-row-breached' : ''}`}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => setEditCase(c)}
-                  >
-                    <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.dim }}>
-                      {c.id?.slice(0, 8)}…
-                    </td>
-                    <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', fontWeight: 600, color: T.text }}>
-                      {c.source_ip}
-                    </td>
-                    <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: T.muted }}>
-                      {c.attack_type?.replace(/_/g, ' ')}
-                    </td>
-                    <td><Badge map={SEV} value={c.severity} /></td>
-                    <td><Badge map={STAT} value={c.status} /></td>
-                    <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '11px', color: T.muted }}>
-                      {c.assigned_to || <span style={{ color: T.dim }}>—</span>}
-                    </td>
-                    <td>
-                      <span style={{ color: SLA_COLOR[c.sla_status] || T.dim, fontFamily: "'IBM Plex Mono',monospace", fontSize: '12px', fontWeight: 700 }}>
-                        {SLA_ICON[c.sla_status] || '?'}
-                      </span>
-                    </td>
-                    <td style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.dim }}>
-                      {c.created_at ? new Date(c.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
-                    </td>
-                    <td onClick={e => e.stopPropagation()}>
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        {c.status === 'open' && (
-                          <button
-                            onClick={e => handleAcknowledge(c.id, e)}
-                            className="time-btn"
-                            style={{ padding: '4px 10px', fontSize: '9px', display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'none', letterSpacing: '0.02em' }}
-                          >
-                            <CheckCheck size={10} /> Ack
-                          </button>
-                        )}
-                        <button
-                          onClick={e => { e.stopPropagation(); setEditCase(c) }}
-                          className="time-btn"
-                          style={{ padding: '4px 10px', fontSize: '9px', textTransform: 'none', letterSpacing: '0.02em' }}
-                        >
-                          View
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
+              {pagedCases.map(c => (
+                <TriageRow
+                  key={c.id}
+                  c={c}
+                  isNew={newIds.has(c.id)}
+                  isBreached={c.sla_status === 'breached' && !['resolved','false_positive'].includes(c.status)}
+                  onAck={handleAcknowledgeRow}
+                  onView={handleViewRow}
+                />
+              ))}
             </tbody>
           </table>
         )}
       </div>
+
+      {/* Pagination */}
+      {pageCount > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '10px', marginTop: '12px' }}>
+          <button
+            onClick={() => setPage(p => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className="time-btn"
+            style={{ padding: '5px 12px', fontSize: '10px', opacity: page === 0 ? 0.4 : 1 }}
+          >
+            ← Prev
+          </button>
+          <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: '10px', color: T.muted }}>
+            {page + 1} / {pageCount}
+          </span>
+          <button
+            onClick={() => setPage(p => Math.min(pageCount - 1, p + 1))}
+            disabled={page === pageCount - 1}
+            className="time-btn"
+            style={{ padding: '5px 12px', fontSize: '10px', opacity: page === pageCount - 1 ? 0.4 : 1 }}
+          >
+            Next →
+          </button>
+        </div>
+      )}
 
       {/* Slide-in panel */}
       {editCase && (

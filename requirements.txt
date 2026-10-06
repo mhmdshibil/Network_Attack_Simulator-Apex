@@ -155,3 +155,8 @@ asyncpg             # PostgreSQL async driver (production)
 aiosqlite           # SQLite async driver (local dev default)
 alembic             # database migrations
 httpx               # async HTTP client for threat-intel APIs
+
+# ── Phase 6 — Platform features ──────────────────────────────────────────────
+pyotp               # TOTP-based 2FA (Google Authenticator compatible)
+qrcode[pil]         # QR code generation for 2FA setup page
+pywebpush           # Web Push / VAPID for PWA push notifications
